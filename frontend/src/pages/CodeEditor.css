@@ -1,9 +1,37 @@
 .editor-layout {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 1.5rem;
+  display: flex;
   height: calc(100vh - 128px);
   overflow: hidden;
+  /* Split layout removes static grid gaps */
+}
+
+/* React Split Gutter Handle */
+.gutter {
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: 50%;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+
+.gutter:hover {
+  background-color: rgba(108,61,232,0.6);
+}
+
+.gutter.gutter-horizontal {
+  cursor: col-resize;
+  background-image: url('data:image/svg+xml;utf8,<svg stroke="%23a8a8b3" stroke-width="2" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><line x1="3" y1="2" x2="3" y2="8" /><line x1="7" y1="2" x2="7" y2="8" /></svg>');
+  background-size: 8px;
+  width: 12px !important;
+  margin: 0 -2px;
+}
+
+.gutter.gutter-vertical {
+  cursor: row-resize;
+  background-image: url('data:image/svg+xml;utf8,<svg stroke="%23a8a8b3" stroke-width="2" viewBox="0 0 10 10" xmlns="http://www.w3.org/2000/svg"><line x1="2" y1="3" x2="8" y2="3" /><line x1="2" y1="7" x2="8" y2="7" /></svg>');
+  background-size: 16px;
+  height: 12px !important;
+  margin: -2px 0;
 }
 
 /* ── Sidebar ── */
@@ -38,19 +66,33 @@
 .q-title { font-size: 0.85rem; font-weight: 600; color: #fffffe; flex: 1; }
 
 /* ── Main ── */
-.editor-main { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+.editor-main { 
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  height: 100%;
+}
 
 .editor-placeholder {
+  grid-column: 2 / -1;
   display: flex; flex-direction: column; align-items: center;
-  justify-content: center; flex: 1; gap: 0.75rem; color: #a8a8b3;
+  justify-content: center; color: #a8a8b3;
   background: rgba(26,26,46,0.5); border-radius: 16px; border: 2px dashed rgba(255,255,255,0.08);
-  min-height: 400px; text-align: center;
+  text-align: center;
 }
 .placeholder-icon { font-size: 3rem; }
 .editor-placeholder h3 { font-size: 1.1rem; color: #fffffe; }
 .editor-placeholder p  { font-size: 0.85rem; }
 
 /* ── Problem panel ── */
+.problem-panel {
+  background: rgba(26,26,46,0.8);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1.5rem;
+  overflow-y: auto;
+  height: 100%;
+}
 .problem-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .problem-title  { font-size: 1.2rem; font-weight: 800; color: #fffffe; }
 .problem-meta   { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
@@ -65,25 +107,51 @@
 .sample-case  { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.35rem; }
 .sample-input { font-family: 'Fira Code', monospace; font-size: 0.82rem; color: #a78bfa; }
 
+/* ── Right Panel Split ── */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
 /* ── Code panel ── */
-.code-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.code-panel {
+  background: rgba(26,26,46,0.8);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.code-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
 .code-lang   { font-size: 0.82rem; font-weight: 600; color: #a8a8b3; }
 .submit-btn  { }
 
-.code-area {
-  width: 100%; resize: vertical;
-  background: rgba(10,10,18,0.8); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px; padding: 1rem; color: #e2e8f0;
-  font-family: 'Fira Code', monospace; font-size: 0.88rem; line-height: 1.6;
-  outline: none; transition: border-color 0.2s;
-  min-height: 280px;
+/* Editor wrapper handles monaco natively */
+.editor-wrapper {
+  flex: 1;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #1e1e1e; /* Monaco default dark background */
 }
-.code-area:focus { border-color: rgba(108,61,232,0.6); }
 
 /* ── Results ── */
+.result-panel-container {
+  background: rgba(26,26,46,0.8);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 1rem;
+  overflow-y: auto;
+  height: 100%;
+}
 .result-error {
   background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.3);
-  color: #f87171; font-size: 0.88rem;
+  color: #f87171; font-size: 0.88rem; padding: 1rem; border-radius: 8px;
 }
 .result-panel { }
 .result-summary { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }

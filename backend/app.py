@@ -104,86 +104,134 @@ def calculate_score(difficulty: str, passed: int, total: int, time_taken: float)
     return round(score, 2)
 
 
-def execute_python(code: str, test_cases: list, time_limit: int = 5) -> dict:
-    """Execute Python code against test cases using a temp file + subprocess."""
-    results = []
-    total = len(test_cases)
-    passed = 0
+import requests
+import concurrent.futures
 
-    for tc in test_cases:
-        inp = tc.get("input", "")
-        expected = str(tc.get("output", "")).strip()
-        func_name = tc.get("function_name", "solution")
+def run_single_testcase(code, language, inp, expected, func_name, time_limit):
+    api_url = os.getenv("COMPILER_API_URL", "https://judge0-ce.p.rapidapi.com")
+    api_key = os.getenv("COMPILER_API_KEY", "f1a6e7fec2314bbf8adc04c177e5c839")
 
-        # Build runner script
-        runner = f"""
+    # Map our languages to Judge0 language IDs
+    LANG_MAP = {
+        "c": 50,
+        "cpp": 54,
+        "java": 62,
+        "javascript": 63,
+        "python": 71,
+        "go": 60,
+        "rust": 73,
+        "ruby": 72,
+        "csharp": 51
+    }
+    lang_id = LANG_MAP.get(language, 71)
+
+    # If Python, we wrap it to call the specified function dynamically
+    if language == "python":
+        source_code = f"""
 import json, sys
-
 {code}
-
 try:
     inp = {repr(inp)}
     if isinstance(inp, list):
-        result = {func_name}(*inp)
+        res = {func_name}(*inp)
     elif isinstance(inp, dict):
-        result = {func_name}(**inp)
+        res = {func_name}(**inp)
     else:
-        result = {func_name}(inp)
-    print(json.dumps(result))
+        res = {func_name}(inp)
+    print(json.dumps(res))
 except Exception as e:
     print("ERROR: " + str(e), file=sys.stderr)
     sys.exit(1)
 """
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-                f.write(runner)
-                tmp_path = f.name
+        stdin = ""
+    else:
+        # If Java (or others), we expect the user code to be a complete Main class
+        # that reads from standard input and prints to standard output natively.
+        source_code = code
+        # Format input robustly as string for stdin
+        if isinstance(inp, (dict, list)):
+            stdin = json.dumps(inp)
+        else:
+            stdin = str(inp)
 
-            proc = subprocess.run(
-                ["python", tmp_path],
-                capture_output=True, text=True,
-                timeout=time_limit
-            )
-            os.unlink(tmp_path)
+    payload = {
+        "source_code": source_code,
+        "language_id": lang_id,
+        "stdin": stdin,
+        "expected_output": str(expected).strip(),
+    }
+    
+    # RapidAPI vs Raw Judge0 heads
+    headers = {
+        "Content-Type": "application/json"
+    }
+    if "rapidapi.com" in api_url:
+        headers["X-RapidAPI-Key"] = api_key
+        headers["X-RapidAPI-Host"] = api_url.replace("https://", "").split("/")[0]
+    else:
+        headers["X-Auth-Token"] = api_key
 
-            if proc.returncode != 0:
-                results.append({
-                    "input": inp, "expected": expected,
-                    "actual": None, "passed": False,
-                    "error": proc.stderr.strip()
-                })
-            else:
-                actual = proc.stdout.strip()
-                # Flexible comparison: compare JSON or string representations
-                try:
-                    actual_val = json.loads(actual)
-                    exp_val = json.loads(expected) if expected.startswith(("[", "{", '"')) else expected
-                    ok = actual_val == exp_val
-                except Exception:
-                    ok = actual == expected
+    try:
+        # wait=true computes the result immediately so we don't have to poll
+        url = f"{api_url}/submissions?wait=true"
+        res = requests.post(url, json=payload, headers=headers, timeout=15)
+        data = res.json()
 
-                if ok:
-                    passed += 1
-                results.append({
-                    "input": inp, "expected": expected,
-                    "actual": actual, "passed": ok, "error": None
-                })
-        except subprocess.TimeoutExpired:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-            results.append({
-                "input": inp, "expected": expected,
-                "actual": None, "passed": False,
-                "error": "Time limit exceeded"
-            })
-        except Exception as e:
-            results.append({
-                "input": inp, "expected": expected,
-                "actual": None, "passed": False,
-                "error": str(e)
-            })
+        # Judge0 status 3 is "Accepted".
+        status_id = data.get("status", {}).get("id")
+        stdout = (data.get("stdout") or "").strip()
+        stderr = (data.get("stderr") or "").strip()
+        compile_output = (data.get("compile_output") or "").strip()
+
+        # Some times output isn't explicitly 3 but stdout matches expected exactly
+        # Let's verify manually using our flexible check
+        if status_id == 3:
+            passed = True
+            actual = stdout
+            error = None
+        else:
+            # 4=Wrong Answer, 5=TimeLimit, 6=CompilationError...
+            passed = False
+            actual = stdout
+            error = data.get("status", {}).get("description", "Error")
+            if stderr: error += " | " + stderr
+            if compile_output: error += " | " + compile_output
+
+        return {
+            "input": inp,
+            "expected": str(expected).strip(),
+            "actual": actual,
+            "passed": passed,
+            "error": error if not passed else None
+        }
+
+    except Exception as e:
+        return {
+            "input": inp, "expected": str(expected).strip(),
+            "actual": None, "passed": False, "error": str(e)
+        }
+
+
+def execute_code_external(code: str, language: str, test_cases: list, time_limit: int = 5) -> dict:
+    """Execute code against test cases via an external Compiler API concurrently."""
+    results = []
+    total = len(test_cases)
+    passed = 0
+
+    # We use a ThreadPoolExecutor to run all test cases in parallel via the API
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(total, 10)) as executor:
+        futures = []
+        for tc in test_cases:
+            inp = tc.get("input", "")
+            expected = tc.get("output", "")
+            func_name = tc.get("function_name", "solution")
+            futures.append(executor.submit(run_single_testcase, code, language, inp, expected, func_name, time_limit))
+        
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            results.append(res)
+            if res["passed"]:
+                passed += 1
 
     return {"passed": passed, "total": total, "results": results}
 
@@ -364,11 +412,11 @@ def submit_code():
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    if language != "python":
-        return jsonify({"error": "Only Python is supported at this time"}), 400
+    if language not in ["c", "cpp", "java", "javascript", "python", "go", "rust", "ruby", "csharp"]:
+        return jsonify({"error": f"{language} is not supported at this time"}), 400
 
     start = time.time()
-    exec_result = execute_python(code, q.get("test_cases", []), q.get("time_limit", 5))
+    exec_result = execute_code_external(code, language, q.get("test_cases", []), q.get("time_limit", 5))
     elapsed = round(time.time() - start, 3)
 
     passed = exec_result["passed"]

@@ -1,18 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Editor from '@monaco-editor/react';
+import Split from 'react-split';
 import './CodeEditor.css';
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-const DEFAULT_CODE = `def solution(*args):
-    # Write your solution here
-    pass
-`;
+const DEFAULT_CODE = {
+  python: `def solution(*args):\n    # Write your solution here\n    pass\n`,
+  java: `import java.util.*;\n\npublic class Solution {\n    public static Object solution(Object... args) {\n        // Write your solution here\n        return null;\n    }\n}\n`,
+  c: `#include <stdio.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n`,
+  cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n`,
+  javascript: `function solution() {\n    // Write your solution here\n}\n`,
+  go: `package main\nimport "fmt"\n\nfunc main() {\n    // Write your solution here\n}\n`,
+  rust: `fn main() {\n    // Write your solution here\n}\n`,
+  ruby: `def solution(*args)\n    # Write your solution here\nend\n`,
+  csharp: `using System;\n\nclass Solution {\n    static void Main(string[] args) {\n        // Write your solution here\n    }\n}\n`,
+};
 
 export default function CodeEditor({ user, token }) {
   const [questions, setQuestions]   = useState([]);
   const [selected, setSelected]     = useState(null);
-  const [code, setCode]             = useState(DEFAULT_CODE);
-  const [language]                  = useState('python');
+  const [code, setCode]             = useState(DEFAULT_CODE.python);
+  const [language, setLanguage]     = useState('python');
   const [result, setResult]         = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingQ, setLoadingQ]     = useState(true);
@@ -44,7 +53,7 @@ export default function CodeEditor({ user, token }) {
     setSelected(null);
     setResult(null);
     setError('');
-    setCode(DEFAULT_CODE);
+    setCode(DEFAULT_CODE[language]);
     try {
       const res  = await fetch(`${API}/api/questions/${q._id}`, { headers });
       const data = await res.json();
@@ -129,90 +138,157 @@ export default function CodeEditor({ user, token }) {
           </div>
         ) : (
           <>
-            {/* Problem description */}
-            <div className="problem-panel card">
-              <div className="problem-header">
-                <h2 className="problem-title">{selected.title}</h2>
-                <div className="problem-meta">
-                  <span className={`badge ${diffClass(selected.difficulty)}`}>{selected.difficulty}</span>
-                  <span className="meta-chip">⏱ {selected.time_limit}s</span>
-                  <span className="meta-chip">💾 {selected.memory_limit}MB</span>
-                </div>
-              </div>
-              <p className="problem-desc">{selected.description}</p>
-
-              {selected.sample_test_cases && selected.sample_test_cases.length > 0 && (
-                <div className="sample-cases">
-                  <h4 className="sample-title">Sample Input</h4>
-                  {selected.sample_test_cases.map((tc, i) => (
-                    <div key={i} className="sample-case">
-                      <code className="sample-input">
-                        {typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input)}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Code editor */}
-            <div className="code-panel card">
-              <div className="code-header">
-                <span className="code-lang">🐍 Python</span>
-                <button
-                  className="btn btn-primary submit-btn"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                >
-                  {submitting ? '⏳ Running…' : '▶ Run & Submit'}
-                </button>
-              </div>
-              <textarea
-                className="code-area"
-                value={code}
-                onChange={e => setCode(e.target.value)}
-                spellCheck={false}
-                rows={18}
-              />
-            </div>
-
-            {/* Results */}
-            {error && <div className="result-error card">⚠️ {error}</div>}
-
-            {result && (
-              <div className="result-panel card">
-                <div className="result-summary">
-                  <div className={`result-badge ${result.passed_tests === result.total_tests ? 'accepted' : 'partial'}`}>
-                    {result.passed_tests === result.total_tests ? '✅ Accepted' : '⚠️ Partial'}
-                  </div>
-                  <div className="result-stats">
-                    <span>Score: <strong>{result.score?.toFixed(2)}</strong></span>
-                    <span>Tests: <strong>{result.passed_tests}/{result.total_tests}</strong></span>
-                    <span>Time: <strong>{result.execution_time}s</strong></span>
+            <Split 
+              className="split-horizontal" 
+              direction="horizontal" 
+              sizes={[40, 60]} 
+              minSize={300} 
+              gutterSize={8} 
+              style={{ display: 'flex', width: '100%', height: '100%' }}
+            >
+              {/* Problem description Pane */}
+              <div className="problem-panel card">
+                <div className="problem-header">
+                  <h2 className="problem-title">{selected.title}</h2>
+                  <div className="problem-meta">
+                    <span className={`badge ${diffClass(selected.difficulty)}`}>{selected.difficulty}</span>
+                    <span className="meta-chip">⏱ {selected.time_limit}s</span>
+                    <span className="meta-chip">💾 {selected.memory_limit}MB</span>
                   </div>
                 </div>
+                <p className="problem-desc">{selected.description}</p>
 
-                <div className="test-results">
-                  {result.execution_result?.map((r, i) => (
-                    <div key={i} className={`test-row ${r.passed ? 'pass' : 'fail'}`}>
-                      <span className="test-status">{r.passed ? '✅' : '❌'}</span>
-                      <span className="test-label">Test {i + 1}</span>
-                      {!r.passed && (
-                        <div className="test-details">
-                          {r.error
-                            ? <span className="test-error">{r.error}</span>
-                            : <span className="test-diff">Expected: {JSON.stringify(r.expected)} | Got: {JSON.stringify(r.actual)}</span>
-                          }
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                {selected.sample_test_cases && selected.sample_test_cases.length > 0 && (
+                  <div className="sample-cases">
+                    <h4 className="sample-title">Sample Input</h4>
+                    {selected.sample_test_cases.map((tc, i) => (
+                      <div key={i} className="sample-case">
+                        <code className="sample-input">
+                          {typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input)}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Code + Console Pane */}
+              <div className="right-panel" style={{ height: '100%' }}>
+                {!(error || result) ? (
+                  /* If no results, Code Editor takes full right panel */
+                  <div className="code-panel card" style={{ height: '100%' }}>
+                    {CodePanelContent()}
+                  </div>
+                ) : (
+                  /* If results exist, Split vertically */
+                  <Split 
+                    direction="vertical" 
+                    sizes={[65, 35]} 
+                    minSize={100} 
+                    gutterSize={8}
+                    style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                  >
+                    <div className="code-panel card" style={{ height: '100%' }}>
+                      {CodePanelContent()}
+                    </div>
+
+                    <div className="result-panel-container card" style={{ height: '100%', overflowY: 'auto' }}>
+                      {error && <div className="result-error">⚠️ {error}</div>}
+                      {result && ResultPanelContent()}
+                    </div>
+                  </Split>
+                )}
+              </div>
+            </Split>
           </>
         )}
       </div>
     </div>
   );
+
+  // Helper renderers
+  function CodePanelContent() {
+    return (
+      <>
+        <div className="code-header">
+          <select
+            className="input-field"
+            style={{ width: 'auto', padding: '0.2rem 0.5rem', fontWeight: 'bold' }}
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+              setCode(DEFAULT_CODE[e.target.value]);
+            }}
+          >
+            <option value="python">🐍 Python</option>
+            <option value="java">☕ Java</option>
+            <option value="c">🅒 C</option>
+            <option value="cpp">🟦 C++</option>
+            <option value="javascript">🟨 JS</option>
+            <option value="go">🐹 Go</option>
+            <option value="rust">⚙️ Rust</option>
+            <option value="ruby">💎 Ruby</option>
+            <option value="csharp">🟣 C#</option>
+          </select>
+          <button
+            className="btn btn-primary submit-btn"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? '⏳ Running…' : '▶ Run & Submit'}
+          </button>
+        </div>
+        <div className="editor-wrapper">
+          <Editor
+            language={language === 'c' || language === 'cpp' ? 'cpp' : language}
+            theme="vs-dark"
+            value={code}
+            onChange={val => setCode(val)}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 14,
+              fontFamily: "'Fira Code', monospace",
+              scrollBeyondLastLine: false,
+              roundedSelection: false,
+              padding: { top: 16 }
+            }}
+          />
+        </div>
+      </>
+    );
+  }
+
+  function ResultPanelContent() {
+    return (
+      <div className="result-panel">
+        <div className="result-summary">
+          <div className={`result-badge ${result.passed_tests === result.total_tests ? 'accepted' : 'partial'}`}>
+            {result.passed_tests === result.total_tests ? '✅ Accepted' : '⚠️ Partial'}
+          </div>
+          <div className="result-stats">
+            <span>Score: <strong>{result.score?.toFixed(2)}</strong></span>
+            <span>Tests: <strong>{result.passed_tests}/{result.total_tests}</strong></span>
+            <span>Time: <strong>{result.execution_time}s</strong></span>
+          </div>
+        </div>
+
+        <div className="test-results">
+          {result.execution_result?.map((r, i) => (
+            <div key={i} className={`test-row ${r.passed ? 'pass' : 'fail'}`}>
+              <span className="test-status">{r.passed ? '✅' : '❌'}</span>
+              <span className="test-label">Test {i + 1}</span>
+              {!r.passed && (
+                <div className="test-details">
+                  {r.error
+                    ? <span className="test-error">{r.error}</span>
+                    : <span className="test-diff">Expected: {JSON.stringify(r.expected)} | Got: {JSON.stringify(r.actual)}</span>
+                  }
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 }
