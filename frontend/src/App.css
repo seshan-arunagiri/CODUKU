@@ -1,0 +1,171 @@
+/* ── CSS Variables ─────────────────────────────────────────────────── */
+:root {
+  --bg-deep:    #0f0e17;
+  --bg-card:    #1a1a2e;
+  --bg-surface: #16213e;
+  --accent:     #6c3de8;
+  --accent-2:   #a78bfa;
+  --accent-glow:rgba(108, 61, 232, 0.35);
+  --text-primary:   #fffffe;
+  --text-secondary: #a8a8b3;
+  --border:    rgba(255,255,255,0.08);
+  --success:   #34d399;
+  --error:     #f87171;
+  --warning:   #fbbf24;
+  /* House colors */
+  --gryffindor: #ae0001;
+  --hufflepuff: #ecb939;
+  --ravenclaw:  #222f5b;
+  --slytherin:  #1a472a;
+}
+
+/* ── App Shell ──────────────────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── Loader ─────────────────────────────────────────────────────────── */
+.app-loader {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh; gap: 1.5rem;
+  background: var(--bg-deep); color: var(--text-secondary);
+}
+.loader-spinner {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Navbar ─────────────────────────────────────────────────────────── */
+.navbar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0 2rem; height: 64px;
+  background: rgba(15,14,23,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-brand { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.brand-icon { font-size: 1.6rem; }
+.brand-name {
+  font-size: 1.3rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-2), #f9a8d4);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+
+.navbar-links { display: flex; gap: 0.25rem; flex: 1; justify-content: center; }
+
+.nav-btn {
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-secondary); font-size: 0.875rem; font-weight: 500;
+  padding: 0.45rem 1rem; border-radius: 8px;
+  transition: all 0.2s; font-family: inherit;
+}
+.nav-btn:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.nav-btn.active {
+  background: rgba(108,61,232,0.2); color: var(--accent-2);
+  box-shadow: 0 0 0 1px rgba(108,61,232,0.4);
+}
+
+.navbar-user { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+
+.user-badge {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid;
+  border-radius: 12px; padding: 0.35rem 0.75rem;
+}
+.user-avatar {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.875rem; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.user-info { display: flex; flex-direction: column; line-height: 1.2; }
+.user-name  { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
+.user-house { font-size: 0.7rem; font-weight: 600; }
+
+.logout-btn {
+  background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3);
+  color: var(--error); font-size: 1.1rem; cursor: pointer;
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.logout-btn:hover { background: rgba(248,113,113,0.25); }
+
+/* ── Main Content ───────────────────────────────────────────────────── */
+.main-content { flex: 1; padding: 2rem; max-width: 1400px; margin: 0 auto; width: 100%; }
+
+/* ── Shared Card ────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 1.5rem;
+}
+.card-glass {
+  background: rgba(26,26,46,0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 1.5rem;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.875rem;
+  font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+  font-family: inherit; text-decoration: none;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  color: #fff; box-shadow: 0 4px 20px var(--accent-glow);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px var(--accent-glow); }
+.btn-secondary {
+  background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-primary);
+}
+.btn-secondary:hover { background: rgba(255,255,255,0.1); }
+.btn-success { background: rgba(52,211,153,0.15); border: 1px solid rgba(52,211,153,0.4); color: var(--success); }
+.btn-danger  { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.4); color: var(--error); }
+
+/* ── Form Inputs ────────────────────────────────────────────────────── */
+.input-field {
+  width: 100%; background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.65rem 1rem; color: var(--text-primary);
+  font-size: 0.9rem; font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.input-field::placeholder { color: var(--text-secondary); }
+
+/* ── Section Headers ────────────────────────────────────────────────── */
+.page-title {
+  font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent-2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.page-subtitle { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 2rem; }
+
+/* ── Badge ──────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; padding: 0.25rem 0.65rem;
+  border-radius: 20px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.3px;
+}
+.badge-easy   { background: rgba(52,211,153,0.15); color: #34d399; }
+.badge-medium { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.badge-hard   { background: rgba(248,113,113,0.15); color: #f87171; }
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .navbar { padding: 0 1rem; }
+  .navbar-links { display: none; }
+  .main-content { padding: 1rem; }
+  .brand-name { font-size: 1rem; }
+}

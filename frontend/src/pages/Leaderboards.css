@@ -1,0 +1,89 @@
+.lb-root { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* tabs */
+.lb-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.lb-tab {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 0.45rem 1rem; color: #a8a8b3;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.lb-tab:hover  { background: rgba(255,255,255,0.09); color: #fffffe; }
+.lb-tab.active { background: rgba(108,61,232,0.2); border-color: rgba(108,61,232,0.5); color: #a78bfa; }
+
+.lb-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+  padding: 4rem 0; color: #a8a8b3;
+}
+
+/* ── Table ── */
+.lb-table-wrap { overflow-x: auto; }
+.lb-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.lb-table th {
+  text-align: left; padding: 0.65rem 1rem;
+  color: #a8a8b3; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.lb-table td {
+  padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: #fffffe; vertical-align: middle;
+}
+.lb-table tr:last-child td { border-bottom: none; }
+.lb-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+.rank-cell  { font-size: 1.1rem; font-weight: 800; }
+.name-cell  { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+.score-cell { font-weight: 700; color: #a78bfa; }
+
+.my-row td { background: rgba(108,61,232,0.08) !important; }
+.you-badge {
+  background: rgba(108,61,232,0.3); color: #a78bfa;
+  font-size: 0.65rem; font-weight: 800; border-radius: 20px; padding: 0.1rem 0.45rem;
+  border: 1px solid rgba(108,61,232,0.5);
+}
+
+.house-tag { font-size: 0.85rem; font-weight: 600; }
+.lb-empty  { text-align: center; color: #a8a8b3; padding: 2rem; font-size: 0.875rem; }
+
+/* ── House grid ── */
+.houses-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
+.house-card {
+  border-radius: 20px; overflow: hidden; position: relative;
+  cursor: pointer; transition: transform 0.25s, box-shadow 0.25s;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.house-card:hover { transform: translateY(-5px); box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
+.house-card-bg { position: absolute; inset: 0; opacity: 0.3; }
+.house-card-content {
+  position: relative; z-index: 1; padding: 1.75rem 1.25rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center;
+  background: rgba(15,14,23,0.55); backdrop-filter: blur(8px);
+}
+.hc-rank  { font-size: 1.6rem; }
+.hc-icon  { font-size: 3rem; }
+.hc-name  { font-size: 1.1rem; font-weight: 800; color: #fffffe; }
+.hc-score { font-size: 1.4rem; font-weight: 800; color: var(--hcolor, #a78bfa); }
+.hc-score span { font-size: 0.75rem; color: #a8a8b3; font-weight: 400; }
+.hc-meta  { display: flex; gap: 0.75rem; font-size: 0.75rem; color: #a8a8b3; flex-wrap: wrap; justify-content: center; }
+.hc-view-btn {
+  margin-top: 0.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 20px; padding: 0.35rem 0.9rem; color: #fffffe;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  transition: background 0.2s;
+}
+.hc-view-btn:hover { background: rgba(255,255,255,0.18); }
+
+/* House member header */
+.house-member-header { display: flex; align-items: center; gap: 1.5rem; }
+.house-back {
+  font-size: 0.85rem; color: #a8a8b3; cursor: pointer;
+  transition: color 0.2s;
+}
+.house-back:hover { color: #fffffe; }
+
+@media (max-width: 900px) {
+  .houses-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+  .houses-grid { grid-template-columns: 1fr; }
+}

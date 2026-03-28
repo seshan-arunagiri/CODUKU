@@ -1,0 +1,14 @@
+/* Global reset & base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #0f0e17;
+  color: #fffffe;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, textarea.code-area {
+  font-family: 'Fira Code', monospace;
+}

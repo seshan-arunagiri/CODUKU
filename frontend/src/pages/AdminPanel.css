@@ -1,0 +1,64 @@
+.admin-root { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* Tabs */
+.admin-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.admin-tab {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; padding: 0.45rem 1rem; color: #a8a8b3;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.admin-tab:hover  { background: rgba(255,255,255,0.09); color: #fffffe; }
+.admin-tab.active { background: rgba(108,61,232,0.2); border-color: rgba(108,61,232,0.5); color: #a78bfa; }
+
+/* Messages */
+.admin-msg { border-radius: 10px; padding: 0.65rem 1rem; font-size: 0.875rem; }
+.admin-msg.success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.35); color: #34d399; }
+.admin-msg.error   { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.35); color: #f87171; }
+
+/* List */
+.admin-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.ql-count { font-size: 0.85rem; color: #a8a8b3; }
+.admin-empty { color: #a8a8b3; font-size: 0.875rem; text-align: center; padding: 2rem; }
+
+/* Table */
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.admin-table th {
+  text-align: left; padding: 0.6rem 0.85rem;
+  color: #a8a8b3; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.admin-table td {
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: #fffffe; vertical-align: middle;
+}
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table tr:hover td { background: rgba(255,255,255,0.03); }
+.qt-title { font-weight: 600; }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.78rem; border-radius: 7px; }
+
+/* Form */
+.admin-form { display: flex; flex-direction: column; gap: 1.25rem; }
+.form-row { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.form-label { font-size: 0.78rem; font-weight: 600; color: #a8a8b3; }
+.admin-desc    { resize: vertical; min-height: 90px; }
+.admin-solution { resize: vertical; font-family: 'Fira Code', monospace; font-size: 0.82rem; }
+
+/* Test cases */
+.tc-section { display: flex; flex-direction: column; gap: 0.75rem; }
+.tc-header { display: flex; align-items: center; justify-content: space-between; }
+.tc-title  { font-size: 0.9rem; font-weight: 700; color: #fffffe; }
+.tc-row    { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 1rem; }
+.tc-row-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.tc-num    { font-size: 0.8rem; font-weight: 700; color: #a78bfa; }
+.tc-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+
+/* Actions */
+.form-actions { display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 0.5rem; }
+
+@media (max-width: 700px) {
+  .form-row   { grid-template-columns: 1fr; }
+  .tc-fields  { grid-template-columns: 1fr; }
+}
