@@ -1,0 +1,123 @@
+.badges-page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.badges-hero {
+  padding: 3rem;
+  text-align: center;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(108, 61, 232, 0.1), rgba(0, 0, 0, 0.4));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.badges-encyclopedia {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.badge-details-card {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem 2rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: transform 0.3s, border-color 0.3s;
+  overflow: hidden;
+  position: relative;
+}
+.badge-details-card:hover {
+  transform: translateX(8px);
+  border-color: var(--badge-color);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.badge-visual {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.badge-icon-lg {
+  font-size: 4rem;
+  z-index: 2;
+  filter: drop-shadow(0 0 15px var(--badge-color));
+}
+.badge-glow {
+  position: absolute;
+  width: 80px; height: 80px;
+  background: var(--badge-color);
+  filter: blur(40px);
+  opacity: 0.15;
+  border-radius: 50%;
+  animation: pulse-glow 3s ease-in-out infinite alternate;
+}
+@keyframes pulse-glow {
+  0% { transform: scale(0.8); opacity: 0.1; }
+  100% { transform: scale(1.2); opacity: 0.25; }
+}
+
+.badge-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.badge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.badge-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+}
+.badge-rarity {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.badge-rarity.common { color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.badge-rarity.rare { color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); }
+.badge-rarity.legendary { color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+.badge-rarity.mythic { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+
+.badge-criteria {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 600px;
+}
+
+@media (max-width: 640px) {
+  .badge-details-card { flex-direction: column; text-align: center; gap: 1rem; }
+  .badge-header { flex-direction: column; gap: 0.5rem; }
+}
