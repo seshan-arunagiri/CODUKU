@@ -1,4 +1,4 @@
-# CodeHouses - Competitive Coding Platform
+# CodeHouses - Competitive Coding Platform.
 
 A full-stack competitive coding platform with a **House System** where students are divided into 4 houses and compete through coding challenges. Built with **Python (Flask)**, **React**, and **MongoDB**.
 
