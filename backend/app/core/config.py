@@ -1,3 +1,6 @@
+from typing import List, Optional
+from pydantic_settings import BaseSettings
+
 class Settings(BaseSettings):
     # ===== API =====
     API_TITLE: str = "CODUKU API"
@@ -34,7 +37,14 @@ class Settings(BaseSettings):
 
     # ===== DB =====
     MONGODB_URL: Optional[str] = None
+    
+    # ===== OpenAI =====
+    OPENAI_API_KEY: str = "sk-test-default-key-for-development"
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # Allow extra fields from .env
+
+
+settings = Settings()

@@ -5,7 +5,8 @@ Set-Location -Path "$PSScriptRoot\.."
 Write-Host "Activating virtual environment..." -ForegroundColor Green
 . .venv\Scripts\Activate.ps1
 
-# Start backend
-Write-Host "Starting FastAPI Backend on http://0.0.0.0:8000" -ForegroundColor Green
+# Start backend using wrapper script
+Write-Host "Starting FastAPI Backend on http://127.0.0.1:8000" -ForegroundColor Green
 Write-Host "API Docs available at http://localhost:8000/docs" -ForegroundColor Cyan
-python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+Write-Host "Swagger UI: http://localhost:8000/docs" -ForegroundColor Cyan
+python backend/run.py
