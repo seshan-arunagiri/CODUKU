@@ -43,6 +43,7 @@ db = client.get_default_database() if "coding_platform" not in MONGO_URI.split("
 users_col       = db["users"]
 questions_col   = db["questions"]
 submissions_col = db["submissions"]
+settings_col    = db["settings"]
 
 # Ensure indexes
 users_col.create_index("email", unique=True)
@@ -104,86 +105,143 @@ def calculate_score(difficulty: str, passed: int, total: int, time_taken: float)
     return round(score, 2)
 
 
-def execute_python(code: str, test_cases: list, time_limit: int = 5) -> dict:
-    """Execute Python code against test cases using a temp file + subprocess."""
+import requests
+import concurrent.futures
+
+def run_single_testcase(code, language, inp, expected, func_name, time_limit):
+    """Executes a single test case LOCALLY on the server machine."""
+    import subprocess
+    import tempfile
+    import json
+    import time
+    
+    # Supported languages locally
+    output = ""
+    error = ""
+    start_time = time.time()
+    
+    try:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file_path = ""
+            run_cmd = []
+            
+            if language == "python":
+                file_path = os.path.join(tmp_dir, "solution.py")
+                # Wrap for functional testing
+                wrapped_code = f"""
+import json, sys
+{code}
+try:
+    inp = {repr(inp)}
+    if isinstance(inp, list):
+        res = {func_name}(*inp)
+    elif isinstance(inp, dict):
+        res = {func_name}(**inp)
+    else:
+        res = {func_name}(inp)
+    print(json.dumps(res))
+except Exception as e:
+    print(str(e), file=sys.stderr)
+    sys.exit(1)
+"""
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(wrapped_code)
+                run_cmd = ["python", file_path]
+                
+            elif language == "javascript":
+                file_path = os.path.join(tmp_dir, "solution.js")
+                # Wrap for node functional testing
+                wrapped_code = f"""
+{code}
+try {{
+    const inp = {json.dumps(inp)};
+    const res = solution(...(Array.isArray(inp) ? inp : [inp]));
+    process.stdout.write(JSON.stringify(res));
+}} catch (e) {{
+    process.stderr.write(e.message);
+    process.exit(1);
+}}
+"""
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(wrapped_code)
+                run_cmd = ["node", file_path]
+                
+            elif language == "java":
+                # Java requires class name to match file name
+                file_path = os.path.join(tmp_dir, "Solution.java")
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(code)
+                # Compile
+                compile_res = subprocess.run(["javac", "Solution.java"], cwd=tmp_dir, capture_output=True, text=True)
+                if compile_res.returncode != 0:
+                    return {"input": inp, "expected": str(expected).strip(), "actual": "", "passed": False, "error": "Compilation Error: " + compile_res.stderr}
+                
+                run_cmd = ["java", "Solution"]
+                stdin_input = json.dumps(inp) if isinstance(inp, (list, dict)) else str(inp)
+                
+            else:
+                return {"input": inp, "expected": str(expected).strip(), "actual": "", "passed": False, "error": f"Language '{language}' not installed for local execution."}
+
+            # Execute
+            try:
+                # Pass stdin if it's not handled by the wrapper
+                stdin_data = stdin_input if language == "java" else None
+                
+                proc = subprocess.run(
+                    run_cmd,
+                    input=stdin_data,
+                    cwd=tmp_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=time_limit
+                )
+                output = proc.stdout.strip()
+                error = proc.stderr.strip()
+                
+                passed = False
+                if proc.returncode == 0:
+                    if output == str(expected).strip():
+                        passed = True
+                    else:
+                        error = "Wrong Answer"
+                else:
+                    error = "Runtime Error: " + error
+                
+                return {
+                    "input": inp,
+                    "expected": str(expected).strip(),
+                    "actual": output,
+                    "passed": passed,
+                    "error": error if not passed else None
+                }
+            except subprocess.TimeoutExpired:
+                return {"input": inp, "expected": str(expected).strip(), "actual": "", "passed": False, "error": "Time Limit Exceeded"}
+
+    except Exception as e:
+        return {"input": inp, "expected": str(expected).strip(), "actual": None, "passed": False, "error": f"Local executor error: {str(e)}"}
+
+
+
+def execute_code_external(code: str, language: str, test_cases: list, time_limit: int = 5) -> dict:
+    """Execute code against test cases via an external Compiler API concurrently."""
     results = []
     total = len(test_cases)
     passed = 0
 
-    for tc in test_cases:
-        inp = tc.get("input", "")
-        expected = str(tc.get("output", "")).strip()
-        func_name = tc.get("function_name", "solution")
-
-        # Build runner script
-        runner = f"""
-import json, sys
-
-{code}
-
-try:
-    inp = {repr(inp)}
-    if isinstance(inp, list):
-        result = {func_name}(*inp)
-    elif isinstance(inp, dict):
-        result = {func_name}(**inp)
-    else:
-        result = {func_name}(inp)
-    print(json.dumps(result))
-except Exception as e:
-    print("ERROR: " + str(e), file=sys.stderr)
-    sys.exit(1)
-"""
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-                f.write(runner)
-                tmp_path = f.name
-
-            proc = subprocess.run(
-                ["python", tmp_path],
-                capture_output=True, text=True,
-                timeout=time_limit
-            )
-            os.unlink(tmp_path)
-
-            if proc.returncode != 0:
-                results.append({
-                    "input": inp, "expected": expected,
-                    "actual": None, "passed": False,
-                    "error": proc.stderr.strip()
-                })
-            else:
-                actual = proc.stdout.strip()
-                # Flexible comparison: compare JSON or string representations
-                try:
-                    actual_val = json.loads(actual)
-                    exp_val = json.loads(expected) if expected.startswith(("[", "{", '"')) else expected
-                    ok = actual_val == exp_val
-                except Exception:
-                    ok = actual == expected
-
-                if ok:
-                    passed += 1
-                results.append({
-                    "input": inp, "expected": expected,
-                    "actual": actual, "passed": ok, "error": None
-                })
-        except subprocess.TimeoutExpired:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
-            results.append({
-                "input": inp, "expected": expected,
-                "actual": None, "passed": False,
-                "error": "Time limit exceeded"
-            })
-        except Exception as e:
-            results.append({
-                "input": inp, "expected": expected,
-                "actual": None, "passed": False,
-                "error": str(e)
-            })
+    # We use a ThreadPoolExecutor to run all test cases in parallel via the API
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(total, 10)) as executor:
+        futures = []
+        for tc in test_cases:
+            inp = tc.get("input", "")
+            expected = tc.get("output", "")
+            func_name = tc.get("function_name", "solution")
+            futures.append(executor.submit(run_single_testcase, code, language, inp, expected, func_name, time_limit))
+        
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            results.append(res)
+            if res["passed"]:
+                passed += 1
 
     return {"passed": passed, "total": total, "results": results}
 
@@ -207,7 +265,7 @@ def register():
     # Validate teacher registration
     role = "student"
     if role_req == "teacher":
-        expected_secret = os.getenv("TEACHER_SECRET", "CODEHOUSES_TEACHER")
+        expected_secret = os.getenv("TEACHER_SECRET", "pranesh")
         if secret != expected_secret:
             return jsonify({"error": "Invalid teacher access code"}), 403
         role = "teacher"
@@ -278,12 +336,60 @@ def login():
 # ─── User Routes ─────────────────────────────────────────────────────────────
 
 @app.route("/api/user/profile", methods=["GET"])
+@app.route("/api/user/profile/<target_uid>", methods=["GET"])
 @jwt_required()
-def get_profile():
-    uid = get_jwt_identity()
+def get_profile(target_uid=None):
+    uid = target_uid if target_uid else get_jwt_identity()
     user = users_col.find_one({"_id": ObjectId(uid)}, {"password": 0})
     if not user:
         return jsonify({"error": "User not found"}), 404
+        
+    subs = list(submissions_col.find({"user_id": uid}, sort=[("submitted_at", DESCENDING)]))
+    dates = []
+    from datetime import datetime, timezone, timedelta
+    for s in subs:
+        if "submitted_at" in s:
+            date_val = s["submitted_at"]
+            if isinstance(date_val, datetime):
+                dates.append(date_val.strftime("%Y-%m-%d"))
+            else:
+                dates.append(str(date_val)[:10])
+                
+    unique_dates = sorted(list(set(dates)), reverse=True)
+    streak = 0
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    if unique_dates:
+        if unique_dates[0] in [today, yesterday]:
+            streak = 1
+            current_date = datetime.strptime(unique_dates[0], "%Y-%m-%d")
+            for i in range(1, len(unique_dates)):
+                d = datetime.strptime(unique_dates[i], "%Y-%m-%d")
+                if (current_date - d).days == 1:
+                    streak += 1
+                    current_date = d
+                else:
+                    break
+
+    badges = []
+    
+    if streak >= 7:
+        badges.append({"id": "week", "name": "Seeker's Spark", "icon": "⚡", "desc": "7 Day Streak"})
+    if streak >= 30:
+        badges.append({"id": "month", "name": "Marauder's Map", "icon": "🗺️", "desc": "30 Day Streak"})
+    if streak >= 365:
+        badges.append({"id": "year", "name": "Elder Wand Mastery", "icon": "🪄", "desc": "365 Day Streak"})
+        
+    top_user = list(users_col.find({"role": "student"}, sort=[("average_score", DESCENDING)], limit=1))
+    if top_user and str(top_user[0]["_id"]) == uid and top_user[0].get("average_score", 0) > 0:
+        badges.append({"id": "top", "name": "Triwizard Champion", "icon": "🏆", "desc": "Current #1 Global Leader"})
+        
+    badges.append({"id": "join", "name": "Sorting Hat", "icon": "🎩", "desc": f"Sorted into {user.get('house', 'Hogwarts')}"})
+
+    user["streak"] = streak
+    user["badges"] = badges
+    
     return jsonify(serialize(user))
 
 
@@ -318,6 +424,27 @@ def get_questions():
     if difficulty:
         filt["difficulty"] = difficulty
 
+    # Security check: students shouldn't see the competition question 
+    # unless they are explicitly assigned to it during the time window
+    uid = get_jwt_identity()
+    user = users_col.find_one({"_id": ObjectId(uid)})
+    is_teacher = user and user.get("role") in ["admin", "teacher"]
+    
+    # Check if a competition is currently set up
+    now = datetime.now()
+    setting = settings_col.find_one({"key": "competition_question"})
+    comp_window_active = False
+
+    if setting and setting.get("value") and not is_teacher:
+        comp_id = setting.get("value")
+        start_hour = setting.get("start_hour", 17)
+        end_hour = setting.get("end_hour", 22)
+        comp_window_active = start_hour <= now.hour < end_hour
+        
+        # Hide it by default from normal fetching if window is NOT active
+        if not comp_window_active:
+            if "_id" not in filt:
+                filt["_id"] = {"$ne": ObjectId(comp_id)}
     questions = list(questions_col.find(filt, {"test_cases": 0, "solution": 0}))
     return jsonify(serialize(questions))
 
@@ -331,6 +458,21 @@ def get_question(question_id):
         return jsonify({"error": "Invalid question ID"}), 400
     if not q:
         return jsonify({"error": "Question not found"}), 404
+
+    # Time-gate competition question
+    uid = get_jwt_identity()
+    user = users_col.find_one({"_id": ObjectId(uid)})
+    is_teacher = user and user.get("role") in ["admin", "teacher"]
+    
+    if not is_teacher:
+        setting = settings_col.find_one({"key": "competition_question"})
+        if setting and setting.get("value") == question_id:
+            now = datetime.now()
+            start_hour = setting.get("start_hour", 17)
+            end_hour = setting.get("end_hour", 22)
+            if not (start_hour <= now.hour < end_hour):
+                return jsonify({"error": f"This trial is only available between {start_hour}:00 and {end_hour}:00."}), 403
+
     # Hide expected output from test cases shown to user
     q_out = serialize(q)
     visible_cases = []
@@ -364,11 +506,11 @@ def submit_code():
     if not q:
         return jsonify({"error": "Question not found"}), 404
 
-    if language != "python":
-        return jsonify({"error": "Only Python is supported at this time"}), 400
+    if language not in ["c", "cpp", "java", "javascript", "python", "go", "rust", "ruby", "csharp"]:
+        return jsonify({"error": f"{language} is not supported at this time"}), 400
 
     start = time.time()
-    exec_result = execute_python(code, q.get("test_cases", []), q.get("time_limit", 5))
+    exec_result = execute_code_external(code, language, q.get("test_cases", []), q.get("time_limit", 5))
     elapsed = round(time.time() - start, 3)
 
     passed = exec_result["passed"]
@@ -422,11 +564,113 @@ def submit_code():
     })
 
 
+@app.route("/api/execute", methods=["POST"])
+@jwt_required()
+def execute_standalone():
+    """Runs a single piece of code without checking against a question's tests (for frontend testing)."""
+    data     = request.get_json()
+    code     = data.get("code", "")
+    language = data.get("language", "python").lower()
+    stdin    = data.get("stdin", "")
+    
+    import subprocess, tempfile, os
+    
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = ""
+        run_cmd = []
+        
+        if language == "python":
+            file_path = os.path.join(tmp_dir, "solution.py")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            run_cmd = ["python", file_path]
+        elif language == "javascript":
+            file_path = os.path.join(tmp_dir, "solution.js")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            run_cmd = ["node", file_path]
+        elif language == "java":
+            file_path = os.path.join(tmp_dir, "Solution.java")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(code)
+            compile_res = subprocess.run(["javac", "Solution.java"], cwd=tmp_dir, capture_output=True, text=True)
+            if compile_res.returncode != 0:
+                return jsonify({"stdout": "", "stderr": compile_res.stderr, "error": "Compilation Error"}), 200
+            run_cmd = ["java", "Solution"]
+        else:
+            return jsonify({"error": f"Language '{language}' not supported locally."}), 400
+
+        try:
+            proc = subprocess.run(
+                run_cmd,
+                input=stdin,
+                cwd=tmp_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return jsonify({
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+                "error": None if proc.returncode == 0 else "Runtime Error"
+            })
+        except subprocess.TimeoutExpired:
+            return jsonify({"stdout": "", "stderr": "Time Limit Exceeded", "error": "Timeout"}), 200
+        except Exception as e:
+            return jsonify({"stdout": "", "stderr": str(e), "error": "System Error"}), 200
+
+
 # ─── Leaderboard Routes ───────────────────────────────────────────────────────
 
 @app.route("/api/leaderboards/global", methods=["GET"])
 @jwt_required()
 def global_leaderboard():
+    # Check if competition mode is active
+    now = datetime.now()
+    setting = settings_col.find_one({"key": "competition_question"})
+    
+    comp_active = False
+    comp_q_id = None
+    if setting:
+        start_hour = setting.get("start_hour", 17)
+        end_hour = setting.get("end_hour", 22)
+        comp_active = start_hour <= now.hour < end_hour
+        comp_q_id = setting.get("value")
+
+    if comp_active and comp_q_id:
+        # Calculate ranks based ONLY on the competition question
+        pipeline = [
+            {"$match": {"question_id": comp_q_id}},
+            {"$group": {
+                "_id": "$user_id",
+                "max_score": {"$max": "$score"},
+                "solved": {"$first": 1}
+            }},
+            {"$sort": {"max_score": DESCENDING}}
+        ]
+        comp_results = list(submissions_col.aggregate(pipeline))
+        comp_map = {res["_id"]: res["max_score"] for res in comp_results}
+        
+        students = list(users_col.find({"role": "student"}, {"password": 0}))
+        result = []
+        for s in students:
+            uid = str(s["_id"])
+            if uid in comp_map:
+                result.append({
+                    "id": uid,
+                    "name": s["name"],
+                    "house": s.get("house", ""),
+                    "average_score": comp_map[uid],
+                    "problems_solved": 1,
+                    "submissions": 1
+                })
+        # Sort and rank
+        result.sort(key=lambda x: x["average_score"], reverse=True)
+        for i, r in enumerate(result, 1):
+            r["rank"] = i
+        return jsonify(result)
+
+    # Standard global leaderboard
     students = list(users_col.find(
         {"role": "student"},
         {"password": 0},
@@ -450,19 +694,45 @@ def global_leaderboard():
 @app.route("/api/leaderboards/houses", methods=["GET"])
 @jwt_required()
 def house_leaderboard():
+    # Check if competition mode is active
+    now = datetime.now()
+    setting = settings_col.find_one({"key": "competition_question"})
+    
+    comp_active = False
+    comp_q_id = None
+    if setting:
+        start_hour = setting.get("start_hour", 17)
+        end_hour = setting.get("end_hour", 22)
+        comp_active = start_hour <= now.hour < end_hour
+        comp_q_id = setting.get("value")
+
     house_data = {}
     for house in HOUSES:
         members = list(users_col.find({"house": house, "role": "student"}))
         if not members:
             avg = 0.0
         else:
-            total = sum(m.get("average_score", 0.0) for m in members)
-            avg = round(total / len(members), 2)
+            if comp_active and comp_q_id:
+                # Average only for the competition question
+                m_ids = [str(m["_id"]) for m in members]
+                pipeline = [
+                    {"$match": {"user_id": {"$in": m_ids}, "question_id": comp_q_id}},
+                    {"$group": {"_id": "$user_id", "best": {"$max": "$score"}}}
+                ]
+                scores = list(submissions_col.aggregate(pipeline))
+                if not scores:
+                    avg = 0.0
+                else:
+                    avg = round(sum(s["best"] for s in scores) / len(members), 2)
+            else:
+                total = sum(m.get("average_score", 0.0) for m in members)
+                avg = round(total / len(members), 2)
+        
         house_data[house] = {
             "house": house,
             "average_score": avg,
             "members": len(members),
-            "total_score": round(sum(m.get("average_score", 0.0) for m in members), 2)
+            "total_score": round(avg * len(members), 2) # simplified
         }
 
     sorted_houses = sorted(house_data.values(), key=lambda x: x["average_score"], reverse=True)
@@ -614,8 +884,43 @@ def admin_submissions():
 @app.route("/api/admin/users", methods=["GET"])
 @admin_required
 def admin_users():
-    users = list(users_col.find({}, {"password": 0}, sort=[("created_at", DESCENDING)]))
-    return jsonify(serialize(users))
+    result = list(users_col.find({}, {"password": 0}, sort=[("created_at", DESCENDING)]))
+    return jsonify(serialize(result))
+
+
+@app.route("/api/admin/competition", methods=["GET", "POST"])
+@admin_required
+def manage_competition():
+    if request.method == "POST":
+        data = request.get_json()
+        q_id = data.get("question_id")
+        start_h = int(data.get("start_hour", 17))
+        end_h = int(data.get("end_hour", 22))
+        settings_col.update_one(
+            {"key": "competition_question"},
+            {"$set": {"value": q_id, "start_hour": start_h, "end_hour": end_h}},
+            upsert=True
+        )
+        return jsonify({"message": "Competition question updated successfully"})
+    
+    res = settings_col.find_one({"key": "competition_question"})
+    return jsonify({"question_id": res["value"] if res else None})
+
+
+@app.route("/api/competition/status", methods=["GET"])
+def competition_status():
+    now = datetime.now()
+    res = settings_col.find_one({"key": "competition_question"})
+    start_hour = res.get("start_hour", 17) if res else 17
+    end_hour = res.get("end_hour", 22) if res else 22
+    active = start_hour <= now.hour < end_hour
+    return jsonify({
+        "active": active,
+        "question_id": res["value"] if res else None,
+        "current_hour": now.hour,
+        "start_hour": start_hour,
+        "end_hour": end_hour
+    })
 
 
 # ─── Health Check ─────────────────────────────────────────────────────────────

@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './Leaderboards.css';
+import HouseLogo from '../components/HouseLogo';
+import MagicalBadge from '../components/MagicalBadge';
+import { X } from 'lucide-react';
 
 const API = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const HOUSE_META = {
-  Gryffindor: { color: '#ae0001', icon: '🦁', gradient: 'linear-gradient(135deg,#ae0001,#d4af37)' },
-  Hufflepuff:  { color: '#ecb939', icon: '🦡', gradient: 'linear-gradient(135deg,#ecb939,#e8832a)' },
-  Ravenclaw:   { color: '#6375d6', icon: '🦅', gradient: 'linear-gradient(135deg,#222f5b,#6375d6)' },
-  Slytherin:   { color: '#2a7c46', icon: '🐍', gradient: 'linear-gradient(135deg,#1a472a,#5d8a5e)' },
+  Gryffindor: { color: '#ae0001', icon: '', gradient: 'linear-gradient(135deg,#ae0001,#d4af37)' },
+  Hufflepuff:  { color: '#ecb939', icon: '', gradient: 'linear-gradient(135deg,#ecb939,#e8832a)' },
+  Ravenclaw:   { color: '#6375d6', icon: '', gradient: 'linear-gradient(135deg,#222f5b,#6375d6)' },
+  Slytherin:   { color: '#2a7c46', icon: '', gradient: 'linear-gradient(135deg,#1a472a,#5d8a5e)' },
 };
 
 export default function Leaderboards({ user, token }) {
@@ -15,6 +18,7 @@ export default function Leaderboards({ user, token }) {
   const [global, setGlobal]       = useState([]);
   const [houses, setHouses]       = useState([]);
   const [houseMembers, setMembers]= useState([]);
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [loading, setLoading]     = useState(true);
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -53,20 +57,32 @@ export default function Leaderboards({ user, token }) {
     }
   };
 
-  const rankMedal = (r) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `#${r}`;
+  const fetchPlayerDetails = async (uid) => {
+    try {
+      const res = await fetch(`${API}/api/user/profile/${uid}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.error) setSelectedPlayer(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const rankMedal = (r) => r === 1 ? '1st' : r === 2 ? '2nd' : r === 3 ? '3rd' : `#${r}`;
 
   return (
     <div className="lb-root">
-      <h1 className="page-title">🏆 Leaderboards</h1>
+      <h1 className="page-title">Leaderboards</h1>
       <p className="page-subtitle">See how you and your house stack up against the competition.</p>
 
       {/* Tabs */}
       <div className="lb-tabs">
         <button className={`lb-tab ${tab === 'global' ? 'active' : ''}`} onClick={() => setTab('global')}>
-          🌍 Global
+          Global
         </button>
         <button className={`lb-tab ${tab === 'houses' ? 'active' : ''}`} onClick={() => setTab('houses')}>
-          🏰 Houses
+          Houses
         </button>
         {Object.values(HOUSE_META).map((m, i) => {
           const name = Object.keys(HOUSE_META)[i];
@@ -109,7 +125,7 @@ export default function Leaderboards({ user, token }) {
                     const m = HOUSE_META[row.house] || {};
                     const isMe = row.name === user.name;
                     return (
-                      <tr key={row.rank} className={isMe ? 'my-row' : ''}>
+                      <tr key={row.rank} className={`${isMe ? 'my-row' : ''} clickable-row`} onClick={() => fetchPlayerDetails(row.id)}>
                         <td className="rank-cell">{rankMedal(row.rank)}</td>
                         <td className="name-cell">
                           {row.name}
@@ -136,7 +152,7 @@ export default function Leaderboards({ user, token }) {
           {tab === 'houses' && (
             <div className="houses-grid">
               {houses.map(h => {
-                const m = HOUSE_META[h.house] || { color: '#6c3de8', icon: '🏰', gradient: 'linear-gradient(135deg,#6c3de8,#a78bfa)' };
+                const m = HOUSE_META[h.house] || { color: '#6c3de8', icon: '', gradient: 'linear-gradient(135deg,#6c3de8,#a78bfa)' };
                 return (
                   <div
                     key={h.house}
@@ -147,12 +163,12 @@ export default function Leaderboards({ user, token }) {
                     <div className="house-card-bg" style={{ background: m.gradient }} />
                     <div className="house-card-content">
                       <div className="hc-rank">{rankMedal(h.rank)}</div>
-                      <div className="hc-icon">{m.icon}</div>
+                      <div className="hc-icon"><HouseLogo house={h.house} size={70} /></div>
                       <h3 className="hc-name">{h.house}</h3>
                       <div className="hc-score">{h.average_score?.toFixed(1)} <span>pts avg</span></div>
                       <div className="hc-meta">
-                        <span>👥 {h.members} members</span>
-                        <span>📊 {h.total_score?.toFixed(0)} total</span>
+                        <span>{h.members} members</span>
+                        <span>{h.total_score?.toFixed(0)} total</span>
                       </div>
                       <button className="hc-view-btn">View Members →</button>
                     </div>
@@ -186,7 +202,7 @@ export default function Leaderboards({ user, token }) {
                     {houseMembers.map(row => {
                       const isMe = row.name === user.name;
                       return (
-                        <tr key={row.rank} className={isMe ? 'my-row' : ''}>
+                        <tr key={row.rank} className={`${isMe ? 'my-row' : ''} clickable-row`} onClick={() => fetchPlayerDetails(row.id)}>
                           <td className="rank-cell">{rankMedal(row.rank)}</td>
                           <td className="name-cell">
                             {row.name}
@@ -205,6 +221,45 @@ export default function Leaderboards({ user, token }) {
             </>
           )}
         </>
+      )}
+
+      {/* ── Player Profile Modal ── */}
+      {selectedPlayer && !selectedPlayer.error && (
+        <div className="profile-detail-overlay">
+          <div className="profile-detail-card card-glass">
+            <button className="close-btn" onClick={() => setSelectedPlayer(null)}>
+              <X size={24} />
+            </button>
+            <div className="p-detail-header">
+              <HouseLogo house={selectedPlayer.house} size={90} />
+              <h2 className="p-detail-name">{selectedPlayer.name}</h2>
+              <span className="p-detail-house">{selectedPlayer.house} House</span>
+            </div>
+            
+            <div className="p-detail-stats">
+              <div className="p-stat">
+                <span className="p-stat-val">{selectedPlayer.problems_solved}</span>
+                <span className="p-stat-lbl">Points</span>
+              </div>
+              <div className="p-stat">
+                <span className="p-stat-val">{selectedPlayer.streak}</span>
+                <span className="p-stat-lbl">Streak</span>
+              </div>
+            </div>
+
+            <div className="p-detail-badges">
+              <h3 className="p-badges-title">Magical Awards</h3>
+              <div className="p-badge-list">
+                {selectedPlayer.badges?.map((b, i) => (
+                  <MagicalBadge key={i} type={b?.id || b} size="sm" />
+                ))}
+                {(!selectedPlayer.badges || selectedPlayer.badges.length === 0) && (
+                  <p className="p-no-badges">No badges yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -12,6 +12,9 @@ const EMPTY_Q  = {
 export default function TeacherDashboard({ user, token }) {
   const [tab, setTab]           = useState('questions');
   const [questions, setQuestions]= useState([]);
+  const [compQId, setCompQId]   = useState(null);
+  const [compStart, setCompStart]= useState(17);
+  const [compEnd, setCompEnd]   = useState(22);
   const [form, setForm]         = useState({ ...EMPTY_Q, test_cases: [{ ...EMPTY_TC }] });
   const [editId, setEditId]     = useState(null);
   const [saving, setSaving]     = useState(false);
@@ -29,7 +32,21 @@ export default function TeacherDashboard({ user, token }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  useEffect(() => { fetchQuestions(); }, [fetchQuestions]);
+  const fetchComp = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/competition/status`);
+      const data = await res.json();
+      setCompQId(data.question_id);
+      if (data.start_hour) setCompStart(data.start_hour);
+      if (data.end_hour) setCompEnd(data.end_hour);
+    } catch (e) {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => { 
+    fetchQuestions();
+    fetchComp();
+  }, [fetchQuestions, fetchComp]);
 
   // ── Form helpers ──────────────────────────────────────────────────────────
   const updateField = (field, val) => setForm(f => ({ ...f, [field]: val }));
@@ -54,6 +71,22 @@ export default function TeacherDashboard({ user, token }) {
     setTab('create');
   };
   const cancelEdit = () => { setEditId(null); setForm({ ...EMPTY_Q, test_cases: [{ ...EMPTY_TC }] }); };
+
+  const assignCompetition = async (qId) => {
+    setMsg(''); setError('');
+    try {
+      const res = await fetch(`${API}/api/admin/competition`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_id: qId, start_hour: Number(compStart), end_hour: Number(compEnd) }),
+      });
+      if (!res.ok) throw new Error('Assignment failed');
+      setCompQId(qId);
+      setMsg(`🏆 Competition problem assigned successfully for ${compStart}:00 to ${compEnd}:00!`);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -101,13 +134,14 @@ export default function TeacherDashboard({ user, token }) {
 
   return (
     <div className="admin-root">
-      <h1 className="page-title">🧑‍🏫 Teacher Dashboard</h1>
+      <h1 className="page-title">Teacher Dashboard</h1>
       <p className="page-subtitle">Upload questions and define test cases for your students.</p>
 
       <div className="admin-tabs">
         {[
           { id: 'questions',    label: '📋 Problems' },
           { id: 'create',       label: editId ? '✏️ Edit Problem' : '➕ Add Problem' },
+          { id: 'assign',       label: '🏆 Assign Test' },
         ].map(t => (
           <button
             key={t.id}
@@ -149,6 +183,42 @@ export default function TeacherDashboard({ user, token }) {
               </table>
             )
           }
+        </div>
+      )}
+
+      {/* ── Assign Competition ── */}
+      {tab === 'assign' && (
+        <div className="card">
+          <h2 className="section-header">Select Competition Question</h2>
+          <p className="section-sub">Choose which problem will be the exclusive trial for the specified window.</p>
+          <div className="admin-list-header" style={{flexWrap: 'wrap', gap: '1rem'}}>
+            <span className="ql-count">Current Active ID: {compQId || 'None'}</span>
+            <div style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
+              <label style={{color: '#a8a8b3', fontSize: '0.85rem'}}>Start Hr (0-23):
+                <input type="number" min="0" max="23" value={compStart} onChange={e => setCompStart(e.target.value)} style={{marginLeft: '0.5rem', width: '60px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.2rem', borderRadius: '5px'}}/>
+              </label>
+              <label style={{color: '#a8a8b3', fontSize: '0.85rem'}}>End Hr (0-24):
+                <input type="number" min="1" max="24" value={compEnd} onChange={e => setCompEnd(e.target.value)} style={{marginLeft: '0.5rem', width: '60px', background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.2rem', borderRadius: '5px'}}/>
+              </label>
+            </div>
+          </div>
+          <table className="admin-table">
+            <thead><tr><th>Title</th><th>Difficulty</th><th>Action</th></tr></thead>
+            <tbody>
+              {questions.map(q => (
+                <tr key={q._id}>
+                  <td>{q.title}</td>
+                  <td><span className={`badge ${diffClass(q.difficulty)}`}>{q.difficulty}</span></td>
+                  <td>
+                    {compQId === q._id 
+                      ? <button className="btn btn-success btn-sm btn-disabled" disabled>Active</button>
+                      : <button className="btn btn-primary btn-sm" onClick={() => assignCompetition(q._id)}>Assign</button>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

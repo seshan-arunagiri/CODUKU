@@ -48,30 +48,155 @@
 /* ── House grid ── */
 .houses-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
 .house-card {
-  border-radius: 20px; overflow: hidden; position: relative;
-  cursor: pointer; transition: transform 0.25s, box-shadow 0.25s;
-  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(20,20,35,0.85);
 }
-.house-card:hover { transform: translateY(-5px); box-shadow: 0 16px 48px rgba(0,0,0,0.4); }
-.house-card-bg { position: absolute; inset: 0; opacity: 0.3; }
+.house-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  padding: 2px;
+  background: var(--hcolor);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.4;
+  transition: opacity 0.3s;
+}
+.house-card:hover { transform: translateY(-8px); box-shadow: 0 16px 40px -8px var(--hcolor); }
+.house-card:hover::before { opacity: 1; }
+
+.house-card-bg { position: absolute; inset: 0; opacity: 0.12; transition: opacity 0.3s; }
+.house-card:hover .house-card-bg { opacity: 0.25; }
+
 .house-card-content {
-  position: relative; z-index: 1; padding: 1.75rem 1.25rem;
-  display: flex; flex-direction: column; align-items: center; gap: 0.5rem; text-align: center;
-  background: rgba(15,14,23,0.55); backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 1;
+  padding: 2.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  text-align: center;
 }
-.hc-rank  { font-size: 1.6rem; }
-.hc-icon  { font-size: 3rem; }
-.hc-name  { font-size: 1.1rem; font-weight: 800; color: #fffffe; }
-.hc-score { font-size: 1.4rem; font-weight: 800; color: var(--hcolor, #a78bfa); }
-.hc-score span { font-size: 0.75rem; color: #a8a8b3; font-weight: 400; }
-.hc-meta  { display: flex; gap: 0.75rem; font-size: 0.75rem; color: #a8a8b3; flex-wrap: wrap; justify-content: center; }
+
+.clickable-row {
+  cursor: pointer;
+}
+.clickable-row:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* ── Player Profile Modal ── */
+.profile-detail-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 2rem;
+}
+.profile-detail-card {
+  width: 100%;
+  max-width: 450px;
+  background: rgba(40,40,45, 0.95);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  position: relative;
+  padding: 3rem 2rem;
+  text-align: center;
+  box-shadow: 0 0 50px rgba(0,0,0,1);
+  animation: modal-slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(50px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.close-btn {
+  position: absolute;
+  top: 1.5rem; right: 1.5rem;
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  border: none;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.close-btn:hover { background: rgba(255,255,255,0.15); transform: rotate(90deg); }
+
+.p-detail-header {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+.p-detail-name { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 800; color: #fff; }
+.p-detail-house { font-size: 1rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+
+.p-detail-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1rem; margin-bottom: 2.5rem;
+}
+.p-stat {
+  padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 16px;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.p-stat-val { font-size: 1.5rem; font-weight: 800; color: var(--house-primary, #fbbf24); }
+.p-stat-lbl { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
+
+.p-detail-badges { text-align: left; }
+.p-badges-title { font-size: 1.1rem; margin-bottom: 1rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem; }
+.p-badge-list { display: flex; flex-wrap: wrap; gap: 1rem; }
+.p-no-badges { color: var(--text-secondary); font-style: italic; }
+
+.hc-rank {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.hc-icon { margin: 0.5rem 0; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6)); }
+
+.hc-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--hcolor);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: 'Playfair Display', serif;
+}
+
+.hc-score { font-size: 1.4rem; font-weight: 800; color: #fff; }
+.hc-score span { font-size: 0.8rem; color: #a8a8b3; font-weight: 400; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.hc-meta { display: flex; gap: 0.75rem; font-size: 0.8rem; color: #a8a8b3; flex-wrap: wrap; justify-content: center; }
+
 .hc-view-btn {
-  margin-top: 0.5rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 20px; padding: 0.35rem 0.9rem; color: #fffffe;
-  font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit;
-  transition: background 0.2s;
+  margin-top: 1rem;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 0.4rem 1.2rem;
+  color: #fffffe;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
 }
-.hc-view-btn:hover { background: rgba(255,255,255,0.18); }
+.hc-view-btn:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
 
 /* House member header */
 .house-member-header { display: flex; align-items: center; gap: 1.5rem; }

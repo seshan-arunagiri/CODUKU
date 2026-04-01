@@ -111,7 +111,7 @@ export default function AdminPanel({ user, token }) {
 
   return (
     <div className="admin-root">
-      <h1 className="page-title">⚙️ Admin Panel</h1>
+      <h1 className="page-title">Admin Panel</h1>
       <p className="page-subtitle">Manage problems, view submissions, monitor the platform.</p>
 
       <div className="admin-tabs">
