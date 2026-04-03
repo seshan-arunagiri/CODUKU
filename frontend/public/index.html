@@ -3,15 +3,43 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#08081a" />
     <meta
       name="description"
-      content="CODUKU - Where Code Meets Competition. Solve coding problems, compete with classmates in house teams, and master algorithms."
+      content="CODUKU — Where Code Meets Competition. A magical Harry Potter-themed competitive coding arena with house rivalry, leaderboards, and AI-powered mentoring."
     />
-    <title>CODUKU - Code Arena & Leaderboards</title>
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Preconnect for Google Fonts performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <title>CODUKU ⚡ Magical Code Arena</title>
+
+    <style>
+      /* Critical CSS: prevent FOUC with dark background */
+      html, body {
+        background: #08081a;
+        color: #e8e6f0;
+      }
+      /* Loading screen while React hydrates */
+      #root:empty::after {
+        content: '⚡';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 3rem;
+        animation: loadPulse 1.5s ease-in-out infinite;
+      }
+      @keyframes loadPulse {
+        0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+        50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+      }
+    </style>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>You need to enable JavaScript to run CODUKU.</noscript>
     <div id="root"></div>
   </body>
 </html>

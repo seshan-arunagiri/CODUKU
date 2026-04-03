@@ -105,8 +105,8 @@ class Judge0Service:
                 token = await cls.submit_code(
                     language=language,
                     source_code=source_code,
-                    stdin=tc.get("input", ""),
-                    expected_output=tc.get("expected_output", ""),
+                    stdin=tc.get("input", tc.get("stdin", "")),
+                    expected_output=tc.get("output", tc.get("expected_output", "")),
                 )
                 res = await cls.poll_until_complete(token)
                 status_id = res["status"]["id"]

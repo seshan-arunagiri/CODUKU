@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
@@ -8,11 +8,49 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import './App.css';
 
 /**
+ * Floating magical particles background
+ */
+function MagicParticles() {
+  const particles = useMemo(() => {
+    return Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      left: `${Math.random() * 100}%`,
+      delay: `${Math.random() * 8}s`,
+      duration: `${6 + Math.random() * 6}s`,
+      size: `${2 + Math.random() * 3}px`,
+      opacity: 0.15 + Math.random() * 0.3,
+      color: ['#8b5cf6', '#d946ef', '#3b82f6', '#f59e0b', '#34d399'][Math.floor(Math.random() * 5)],
+    }));
+  }, []);
+
+  return (
+    <div className="magic-particles">
+      {particles.map(p => (
+        <div
+          key={p.id}
+          className="particle"
+          style={{
+            left: p.left,
+            width: p.size,
+            height: p.size,
+            background: p.color,
+            animationDelay: p.delay,
+            animationDuration: p.duration,
+            opacity: p.opacity,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * Navigation Bar Component
  */
 function Navbar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -28,25 +66,30 @@ function Navbar() {
 
   const userHouse = user?.house?.toLowerCase() || 'gryffindor';
 
+  const navLinks = [
+    { path: '/dashboard', icon: '🏠', label: 'Dashboard' },
+    { path: '/editor', icon: '⚔️', label: 'Code Arena' },
+    { path: '/leaderboard', icon: '🏆', label: 'Leaderboard' },
+  ];
+
   return (
     <nav className="navbar">
-      <div className="nav-brand">
+      <div className="nav-brand" onClick={() => navigate('/dashboard')}>
         <span className="nav-logo">⚡</span>
         <span className="nav-title">CODUKU</span>
       </div>
       <div className="nav-links">
-        <button onClick={() => navigate('/dashboard')} className="nav-link">
-          <span className="nav-icon">🏠</span>
-          Dashboard
-        </button>
-        <button onClick={() => navigate('/editor')} className="nav-link">
-          <span className="nav-icon">💻</span>
-          Code Arena
-        </button>
-        <button onClick={() => navigate('/leaderboard')} className="nav-link">
-          <span className="nav-icon">🏆</span>
-          Leaderboard
-        </button>
+        {navLinks.map(link => (
+          <button 
+            key={link.path}
+            onClick={() => navigate(link.path)} 
+            className={`nav-link ${location.pathname === link.path ? 'active' : ''}`}
+            id={`nav-${link.label.toLowerCase().replace(/\s+/g, '-')}`}
+          >
+            <span className="nav-icon">{link.icon}</span>
+            {link.label}
+          </button>
+        ))}
       </div>
       <div className="nav-user">
         {user && (
@@ -57,7 +100,7 @@ function Navbar() {
             <span className="user-score">⭐ {user.total_score || 0}</span>
           </>
         )}
-        <button onClick={handleLogout} className="nav-logout-btn">
+        <button onClick={handleLogout} className="nav-logout-btn" id="logout-btn">
           Logout
         </button>
       </div>
@@ -90,6 +133,7 @@ function App() {
 
   return (
     <Router>
+      <MagicParticles />
       <Routes>
         {/* Auth Route */}
         <Route

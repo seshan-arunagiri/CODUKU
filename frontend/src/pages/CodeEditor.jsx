@@ -1,12 +1,76 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { submissionAPI, problemAPI, languages, codeTemplates } from '../services/apiService';
 import Editor from '@monaco-editor/react';
 import '../styles/CodeEditor.css';
 
+/**
+ * Lightweight confetti effect — no external dependency needed
+ */
+function launchConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'confetti-canvas';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const particles = [];
+  const colors = ['#8b5cf6', '#d946ef', '#f59e0b', '#34d399', '#3b82f6', '#ef4444', '#c4b5fd', '#fcd34d'];
+
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height - canvas.height,
+      vx: (Math.random() - 0.5) * 6,
+      vy: Math.random() * 4 + 2,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 6 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 10,
+      opacity: 1,
+    });
+  }
+
+  let frame = 0;
+  const maxFrames = 180;
+
+  function animate() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.rotation += p.rotationSpeed;
+      
+      if (frame > maxFrames * 0.6) {
+        p.opacity -= 0.02;
+      }
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rotation * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+
+    if (frame < maxFrames) {
+      requestAnimationFrame(animate);
+    } else {
+      canvas.remove();
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
 function CodeEditor() {
-  // State management
   const navigate = useNavigate();
   const { token, user } = useAuthStore();
   const [problems, setProblems] = useState([]);
@@ -19,20 +83,15 @@ function CodeEditor() {
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiFeedback, setAiFeedback] = useState('');
+  const editorRef = useRef(null);
 
-  /**
-   * Fetch all problems
-   */
   const fetchProblems = useCallback(async () => {
     try {
       setLoading(true);
       const res = await problemAPI.getAll(100, 0);
-      
-      // Handle different response formats
-      const problemList = res.problems || res.data || [];
+      const problemList = res.problems || res.data || (Array.isArray(res) ? res : []);
       setProblems(problemList);
       
-      // Auto-select first problem
       if (problemList.length > 0 && !selected) {
         setSelected(problemList[0]);
       }
@@ -43,27 +102,21 @@ function CodeEditor() {
     }
   }, [selected]);
 
-  /**
-   * Get current user stats
-   */
   const fetchUserStats = useCallback(async () => {
     try {
-      // Note: This endpoint might not exist yet, so we try and fail gracefully
-      const res = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost/api/v1'}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost/api/v1'}/auth/me`, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (res.ok) {
         const data = await res.json();
         setUserStats(data);
       }
     } catch (error) {
-      console.warn('Failed to fetch user stats (optional):', error);
+      // Stats are optional, fail silently
     }
   }, [token]);
 
-  /**
-   * Initialize on mount
-   */
   useEffect(() => {
     if (!token) {
       navigate('/');
@@ -73,20 +126,13 @@ function CodeEditor() {
     fetchUserStats();
   }, [token, navigate, fetchProblems, fetchUserStats]);
 
-  /**
-   * Handle language change
-   */
   const handleLanguageChange = (lang) => {
     setLanguage(lang);
     setCode(codeTemplates[lang] || '');
   };
 
-  /**
-   * CRITICAL: Handle code submission
-   */
   const handleSubmit = async () => {
     if (!code.trim() || !selected) {
-      alert('Please write code and select a problem');
       return;
     }
 
@@ -95,44 +141,32 @@ function CodeEditor() {
     setAiFeedback('');
 
     try {
-      // Step 1: Submit code
-      console.log('📤 Submitting code:', {
-        problemId: selected.id,
-        language,
-        codeLength: code.length
-      });
-
-      const submitRes = await submissionAPI.submit(
-        selected.id,
-        language,
-        code
-      );
-
+      const submitRes = await submissionAPI.submit(selected.id, language, code);
       const submissionId = submitRes.submission_id;
-      console.log('✅ Submission received:', submissionId);
 
-      // Step 2: Poll for results (up to 120 times, every 500ms = 60 seconds max)
-      console.log('⏳ Polling for results...');
+      // Poll for results
       const finalResult = await submissionAPI.pollStatus(submissionId, 120, 500);
 
-      console.log('🎯 Got result:', finalResult);
-
-      // Step 3: Display result
       setResult({
         status: finalResult.status || 'pending',
+        verdict: finalResult.verdict || finalResult.status,
         test_cases_passed: finalResult.test_cases_passed || 0,
         test_cases_total: finalResult.test_cases_total || 0,
         score: finalResult.score || 0,
+        runtime_ms: finalResult.runtime_ms || null,
+        memory_kb: finalResult.memory_kb || null,
         message: finalResult.message || 'Submission processed',
-        details: finalResult.details || []
+        details: finalResult.details || [],
+        output: finalResult.output || '',
+        expected_output: finalResult.expected_output || '',
       });
 
-      // Refresh stats if submission was accepted
-      if (finalResult.status === 'accepted') {
+      // Confetti on accepted!
+      if (finalResult.status === 'accepted' || finalResult.verdict === 'AC') {
+        launchConfetti();
         fetchUserStats();
       }
     } catch (error) {
-      console.error('❌ Submission error:', error);
       setResult({
         status: 'error',
         message: error.detail || error.message || 'Submission failed. Please try again.',
@@ -142,18 +176,13 @@ function CodeEditor() {
     }
   };
 
-  /**
-   * Ask AI for code analysis (optional feature)
-   */
   const handleAskAI = async () => {
-    // This is optional - implement when mentor service is ready
     setAiLoading(true);
     setAiFeedback('');
-    
     try {
-      setAiFeedback('🤖 AI Mentor is processing your code... (coming soon)');
+      setAiFeedback('🧙 AI Mentor is analyzing your code... Feature coming soon!');
     } catch (err) {
-      setAiFeedback('AI Mentor is currently unavailable. Try again later!');
+      setAiFeedback('AI Mentor is currently unavailable.');
     } finally {
       setAiLoading(false);
     }
@@ -161,12 +190,39 @@ function CodeEditor() {
 
   const currentLang = languages[language] || languages.python3;
 
+  const getResultIcon = (status) => {
+    const icons = {
+      'accepted': '✅',
+      'wrong_answer': '❌',
+      'runtime_error': '💥',
+      'time_limit_exceeded': '⏱️',
+      'memory_limit_exceeded': '💾',
+      'compilation_error': '🔴',
+      'error': '💥',
+    };
+    return icons[status] || '❓';
+  };
+
+  const getResultLabel = (status) => {
+    const labels = {
+      'accepted': 'Accepted!',
+      'wrong_answer': 'Wrong Answer',
+      'runtime_error': 'Runtime Error',
+      'time_limit_exceeded': 'Time Limit Exceeded',
+      'memory_limit_exceeded': 'Memory Limit Exceeded',
+      'compilation_error': 'Compilation Error',
+      'error': 'Error',
+      'pending': 'Processing...',
+    };
+    return labels[status] || status;
+  };
+
   if (loading) {
     return (
       <div className="code-arena">
         <div className="loading-state">
           <div className="spinner"></div>
-          <p>Loading problems...</p>
+          <p>Summoning challenges...</p>
         </div>
       </div>
     );
@@ -175,12 +231,12 @@ function CodeEditor() {
   return (
     <div className="code-arena">
       {/* Left sidebar: problems list */}
-      <aside className="arena-sidebar">
+      <aside className="arena-sidebar" id="problem-sidebar">
         <div className="sidebar-header">
           <h3>📚 Problems</h3>
           {userStats && (
             <div className="sidebar-stats">
-              <span className="mini-stat">⭐ {userStats.total_score || 0}</span>
+              <span className="mini-stat">⭐ {userStats.total_score || userStats.score || 0}</span>
               <span className="mini-stat">✅ {userStats.problems_solved || 0}</span>
             </div>
           )}
@@ -199,6 +255,7 @@ function CodeEditor() {
                   setResult(null);
                 }}
                 title={p.title}
+                id={`problem-${p.id}`}
               >
                 <div className="problem-card-top">
                   <span className="problem-num">#{idx + 1}</span>
@@ -238,7 +295,7 @@ function CodeEditor() {
                 {selected.description || 'No description available.'}
               </p>
 
-              {/* Show sample test cases if available */}
+              {/* Sample test cases */}
               {selected.test_cases && selected.test_cases.length > 0 && (
                 <div className="sample-cases">
                   <h4>Sample Test Cases</h4>
@@ -252,11 +309,30 @@ function CodeEditor() {
                           <pre>{tc.input || tc.stdin || ''}</pre>
                         </div>
                         <div className="case-block">
-                          <span className="case-label">Output</span>
+                          <span className="case-label">Expected Output</span>
                           <pre>{tc.output || tc.expected_output || ''}</pre>
                         </div>
                       </div>
                     ))}
+                </div>
+              )}
+
+              {/* Examples (alternative format) */}
+              {selected.examples && selected.examples.length > 0 && (
+                <div className="sample-cases">
+                  <h4>Examples</h4>
+                  {selected.examples.map((ex, idx) => (
+                    <div key={idx} className="sample-case">
+                      <div className="case-block">
+                        <span className="case-label">Input</span>
+                        <pre>{ex.input}</pre>
+                      </div>
+                      <div className="case-block">
+                        <span className="case-label">Output</span>
+                        <pre>{ex.output}</pre>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -273,6 +349,7 @@ function CodeEditor() {
                         className={`lang-tab ${language === key ? 'active' : ''}`}
                         onClick={() => handleLanguageChange(key)}
                         title={lang.name}
+                        id={`lang-${key}`}
                       >
                         <span>{lang.icon}</span> {lang.name}
                       </button>
@@ -283,6 +360,7 @@ function CodeEditor() {
                   className="submit-btn"
                   onClick={handleSubmit}
                   disabled={submitting}
+                  id="submit-code-btn"
                 >
                   {submitting ? (
                     <>
@@ -302,52 +380,51 @@ function CodeEditor() {
                   theme="vs-dark"
                   value={code}
                   onChange={(v) => setCode(v || '')}
+                  onMount={(editor) => { editorRef.current = editor; }}
                   options={{
-                    minimap: { enabled: true },
+                    minimap: { enabled: false },
                     fontSize: 14,
-                    fontFamily: "'Fira Code', 'JetBrains Mono', monospace",
+                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
-                    padding: { top: 16 },
+                    padding: { top: 16, bottom: 16 },
                     lineNumbers: 'on',
                     renderLineHighlight: 'all',
                     bracketPairColorization: { enabled: true },
                     cursorBlinking: 'smooth',
                     smoothScrolling: true,
                     wordWrap: 'on',
+                    tabSize: 4,
+                    suggestOnTriggerCharacters: true,
+                    quickSuggestions: true,
                   }}
                 />
               </div>
             </div>
 
-            {/* AI Assistant (optional) */}
+            {/* AI Mentor bar */}
             <div className="ai-assistant-panel">
               <button
                 className="btn-ai"
                 onClick={handleAskAI}
                 disabled={aiLoading || !code}
+                id="ai-mentor-btn"
               >
-                {aiLoading ? '✨ AI is thinking...' : '✨ Ask AI Mentor'}
+                {aiLoading ? '🧙 Thinking...' : '🧙 Ask AI Mentor'}
               </button>
               {aiFeedback && (
                 <div className="ai-feedback-box">
-                  <strong>🤖 Mentor:</strong> {aiFeedback}
+                  {aiFeedback}
                 </div>
               )}
             </div>
 
             {/* Results Display */}
             {result && (
-              <div className={`result-panel result-${result.status}`}>
+              <div className={`result-panel result-${result.status}`} id="result-panel">
                 <div className="result-header">
                   <span className="result-status-text">
-                    {result.status === 'accepted' ? '✅ Accepted!' :
-                     result.status === 'wrong_answer' ? '❌ Wrong Answer' :
-                     result.status === 'runtime_error' ? '💥 Runtime Error' :
-                     result.status === 'time_limit_exceeded' ? '⏱️ Time Limit Exceeded' :
-                     result.status === 'memory_limit_exceeded' ? '💾 Memory Limit Exceeded' :
-                     result.status === 'error' ? '💥 Error' :
-                     '❓ ' + result.status}
+                    {getResultIcon(result.status)} {getResultLabel(result.status)}
                   </span>
                   {result.score > 0 && (
                     <span className="result-score">+{result.score} pts</span>
@@ -356,16 +433,28 @@ function CodeEditor() {
 
                 <p className="result-message">{result.message}</p>
 
-                {result.test_cases_total > 0 && (
-                  <div className="result-details">
+                <div className="result-details">
+                  {result.test_cases_total > 0 && (
                     <div className="result-detail">
-                      <span className="detail-label">Test Cases Passed</span>
+                      <span className="detail-label">Test Cases</span>
                       <span className="detail-value">
                         {result.test_cases_passed}/{result.test_cases_total}
                       </span>
                     </div>
-                  </div>
-                )}
+                  )}
+                  {result.runtime_ms && (
+                    <div className="result-detail">
+                      <span className="detail-label">Runtime</span>
+                      <span className="detail-value">{result.runtime_ms}ms</span>
+                    </div>
+                  )}
+                  {result.memory_kb && (
+                    <div className="result-detail">
+                      <span className="detail-label">Memory</span>
+                      <span className="detail-value">{result.memory_kb}KB</span>
+                    </div>
+                  )}
+                </div>
 
                 {result.details && result.details.length > 0 && (
                   <div className="result-test-details">
@@ -383,7 +472,7 @@ function CodeEditor() {
           </>
         ) : (
           <div className="no-problem-selected">
-            <p>👈 Select a problem to start coding</p>
+            <p>👈 Select a challenge to begin your quest</p>
           </div>
         )}
       </div>

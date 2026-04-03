@@ -4,6 +4,37 @@ import { useAuthStore } from '../store/authStore';
 import { authAPI } from '../services/apiService';
 import '../styles/AuthPage.css';
 
+const houses = [
+  { 
+    value: 'gryffindor', 
+    label: 'Gryffindor', 
+    emoji: '🦁', 
+    desc: 'Brave & Bold',
+    gradient: 'linear-gradient(135deg, #b91c1c, #f59e0b)'
+  },
+  { 
+    value: 'hufflepuff', 
+    label: 'Hufflepuff', 
+    emoji: '🦡', 
+    desc: 'Loyal & Kind',
+    gradient: 'linear-gradient(135deg, #ca8a04, #422006)'
+  },
+  { 
+    value: 'ravenclaw', 
+    label: 'Ravenclaw', 
+    emoji: '🦅', 
+    desc: 'Wise & Creative',
+    gradient: 'linear-gradient(135deg, #1d4ed8, #92400e)'
+  },
+  { 
+    value: 'slytherin', 
+    label: 'Slytherin', 
+    emoji: '🐍', 
+    desc: 'Cunning & Ambitious',
+    gradient: 'linear-gradient(135deg, #15803d, #475569)'
+  }
+];
+
 function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -18,13 +49,6 @@ function AuthPage() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   
-  const houses = [
-    { value: 'gryffindor', label: 'Gryffindor', emoji: '🦁', desc: 'Brave & Bold', gradient: 'linear-gradient(135deg, #b91c1c, #f59e0b)' },
-    { value: 'hufflepuff', label: 'Hufflepuff', emoji: '🦡', desc: 'Loyal & Kind', gradient: 'linear-gradient(135deg, #ca8a04, #422006)' },
-    { value: 'ravenclaw', label: 'Ravenclaw', emoji: '🦅', desc: 'Wise & Creative', gradient: 'linear-gradient(135deg, #1d4ed8, #92400e)' },
-    { value: 'slytherin', label: 'Slytherin', emoji: '🐍', desc: 'Cunning & Ambitious', gradient: 'linear-gradient(135deg, #15803d, #475569)' }
-  ];
-
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     if (error) setError('');
@@ -39,13 +63,11 @@ function AuthPage() {
       let response;
       
       if (isLogin) {
-        // Login flow
         response = await authAPI.login({
           email: form.email,
           password: form.password
         });
       } else {
-        // Register flow
         response = await authAPI.register({
           username: form.username || form.email.split('@')[0],
           email: form.email,
@@ -54,10 +76,8 @@ function AuthPage() {
         });
       }
 
-      // Extract token and user data from response
       const { access_token, user_id, username, house, message } = response;
       
-      // Store in auth state
       login(access_token, {
         user_id,
         username,
@@ -66,7 +86,6 @@ function AuthPage() {
         message
       });
 
-      // Navigate to dashboard
       navigate('/dashboard');
     } catch (err) {
       const errorMsg = err.detail || err.message || 'Authentication failed. Please try again.';
@@ -79,7 +98,7 @@ function AuthPage() {
 
   return (
     <div className="auth-page">
-      {/* Animated background */}
+      {/* Animated magical background */}
       <div className="auth-bg-effects">
         <div className="bg-orb bg-orb-1"></div>
         <div className="bg-orb bg-orb-2"></div>
@@ -100,21 +119,28 @@ function AuthPage() {
                 <span className="feature-icon">🏰</span>
                 <div>
                   <strong>House System</strong>
-                  <p>Join your house & compete</p>
+                  <p>Choose your house and compete for glory</p>
                 </div>
               </div>
               <div className="brand-feature">
-                <span className="feature-icon">💻</span>
+                <span className="feature-icon">⚔️</span>
                 <div>
                   <strong>Code Arena</strong>
-                  <p>Solve challenges in real-time</p>
+                  <p>Solve challenges with a powerful editor</p>
                 </div>
               </div>
               <div className="brand-feature">
                 <span className="feature-icon">🏆</span>
                 <div>
-                  <strong>Leaderboards</strong>
-                  <p>Rise through the ranks</p>
+                  <strong>Live Leaderboards</strong>
+                  <p>Rise through the ranks in real-time</p>
+                </div>
+              </div>
+              <div className="brand-feature">
+                <span className="feature-icon">🧙</span>
+                <div>
+                  <strong>AI Mentor</strong>
+                  <p>Get magical hints when you're stuck</p>
                 </div>
               </div>
             </div>
@@ -124,8 +150,8 @@ function AuthPage() {
         {/* Right form panel */}
         <div className="auth-form-panel">
           <div className="auth-form-header">
-            <h2>{isLogin ? 'Welcome Back' : 'Join the Arena'}</h2>
-            <p>{isLogin ? 'Sign in to continue coding' : 'Create your account and pick a house'}</p>
+            <h2>{isLogin ? 'Welcome Back, Wizard' : 'Join the Arena'}</h2>
+            <p>{isLogin ? 'Sign in to continue your quest' : 'Create your account & choose a house'}</p>
           </div>
 
           <div className="auth-toggle">
@@ -134,7 +160,7 @@ function AuthPage() {
               className={`toggle-btn ${isLogin ? 'active' : ''}`}
               onClick={() => { setIsLogin(true); setError(''); }}
             >
-              Login
+              Sign In
             </button>
             <button
               type="button"
@@ -148,8 +174,9 @@ function AuthPage() {
           <form onSubmit={handleSubmit} className="auth-form">
             {!isLogin && (
               <div className="form-group animate-fade-in-up">
-                <label>Username</label>
+                <label htmlFor="auth-username">Wizard Name</label>
                 <input
+                  id="auth-username"
                   type="text"
                   name="username"
                   placeholder="Choose your wizard name"
@@ -162,8 +189,9 @@ function AuthPage() {
             )}
 
             <div className="form-group">
-              <label>Email</label>
+              <label htmlFor="auth-email">Email</label>
               <input
+                id="auth-email"
                 type="email"
                 name="email"
                 placeholder="you@college.edu"
@@ -175,8 +203,9 @@ function AuthPage() {
             </div>
 
             <div className="form-group">
-              <label>Password</label>
+              <label htmlFor="auth-password">Password</label>
               <input
+                id="auth-password"
                 type="password"
                 name="password"
                 placeholder="••••••••"
@@ -215,14 +244,14 @@ function AuthPage() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="auth-submit-btn">
+            <button type="submit" disabled={loading} className="auth-submit-btn" id="auth-submit">
               {loading ? (
                 <span className="loading-spinner">
                   <span className="spinner"></span>
-                  Processing...
+                  Casting Spell...
                 </span>
               ) : (
-                isLogin ? 'Sign In →' : 'Create Account →'
+                isLogin ? '✨ Sign In' : '✨ Create Account'
               )}
             </button>
           </form>
