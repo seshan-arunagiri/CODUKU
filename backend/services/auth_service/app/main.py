@@ -2,22 +2,22 @@ import logging
 import jwt
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
 from pydantic import BaseModel, EmailStr
 from uuid import uuid4
 import os
 
 from app.core.config import settings
-from app.services.supabase_service import supabase_service
 from app.services.redis_service import redis_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security = HTTPBearer()
+
+# ===== IN-MEMORY USER STORAGE (Fallback for Supabase) =====
+_users_db = {}  # email -> user_data dict
 
 app = FastAPI(title="Auth Service", version="2.0.0")
 
@@ -61,9 +61,13 @@ def create_access_token(user_id: str, email: str) -> str:
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)) -> str:
+async def get_current_user(authorization: str = Header(None)) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    token = authorization.split(" ")[1]
     try:
-        payload = jwt.decode(credentials.credentials, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -73,41 +77,68 @@ async def get_current_user(credentials: HTTPAuthCredentials = Depends(security))
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
 @app.get("/health")
-def health(): return {"status": "healthy", "service": "auth"}
+def health(): 
+    return {"status": "healthy", "service": "auth"}
+
 
 @app.post("/api/v1/auth/register", response_model=AuthResponse)
 async def register(req: RegisterRequest):
-    logger.info(f"Registering user: {req.email}")
-    existing = await supabase_service.get_user_by_email(req.email)
-    if existing:
+    logger.info(f"📝 Registering user: {req.email}")
+    
+    # Check if user already exists in memory
+    if req.email in _users_db:
+        logger.warning(f"❌ User already exists: {req.email}")
         raise HTTPException(status_code=400, detail="User already exists")
     
-    user = await supabase_service.create_user(
-        email=req.email,
-        username=req.username,
-        password_hash=hash_password(req.password),
-        house=req.house
-    )
-    if not user:
-        raise HTTPException(status_code=500, detail="Failed to create user")
-        
-    token = create_access_token(user["id"], user["email"])
+    # Create new user
+    user_id = str(uuid4())
+    user_data = {
+        "id": user_id,
+        "email": req.email,
+        "username": req.username,
+        "password_hash": hash_password(req.password),
+        "house": req.house.lower(),
+        "created_at": datetime.utcnow().isoformat(),
+        "total_score": 0,
+        "problems_solved": 0,
+    }
+    
+    # Store in memory
+    _users_db[req.email] = user_data
+    logger.info(f"✅ User created: {req.email} (House: {req.house})")
+    
+    # Create JWT token
+    token = create_access_token(user_id, req.email)
+    
     return AuthResponse(
         access_token=token,
-        user_id=user["id"],
-        username=user["username"],
-        house=user["house"],
+        user_id=user_id,
+        username=req.username,
+        house=req.house.lower(),
         message=f"Welcome to CODUKU! You've been sorted into {req.house.title()}! 🧙"
     )
 
+
 @app.post("/api/v1/auth/login", response_model=AuthResponse)
 async def login(req: LoginRequest):
-    user = await supabase_service.get_user_by_email(req.email)
-    if not user or not verify_password(req.password, user["password_hash"]):
+    logger.info(f"🔐 Login attempt: {req.email}")
+    
+    # Find user in memory
+    user = _users_db.get(req.email)
+    if not user:
+        logger.warning(f"❌ User not found: {req.email}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+    
+    # Verify password
+    if not verify_password(req.password, user["password_hash"]):
+        logger.warning(f"❌ Invalid password: {req.email}")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
     token = create_access_token(user["id"], user["email"])
+    logger.info(f"✅ Login successful: {req.email}")
+    
     return AuthResponse(
         access_token=token,
         user_id=user["id"],
@@ -116,16 +147,28 @@ async def login(req: LoginRequest):
         message=f"Welcome back! 🧙"
     )
 
+
 @app.get("/api/v1/auth/me")
 async def get_me(user_id: str = Depends(get_current_user)):
-    user = await supabase_service.get_user_by_id(user_id)
-    if not user:
+    logger.info(f"📋 Getting user profile: {user_id}")
+    
+    # Find user in memory
+    user_found = None
+    for user in _users_db.values():
+        if user.get("id") == user_id:
+            user_found = user
+            break
+    
+    if not user_found:
+        logger.warning(f"❌ User not found: {user_id}")
         raise HTTPException(status_code=404, detail="User not found")
-        
-    rank = await redis_service.get_user_rank("global", user_id)
-    return {**user, "rank": rank}
+    
+    try:
+        rank = await redis_service.get_user_rank("global", user_id)
+    except Exception as e:
+        logger.debug(f"Could not get user rank from Redis: {e}")
+        rank = None
+    
+    return {**user_found, "rank": rank}
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    logger.error(f"❌ Unhandled exception: {exc}", exc_info=True)
-    return {"error": str(exc), "status_code": 500, "message": "Internal server error"}
+

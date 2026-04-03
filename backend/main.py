@@ -40,7 +40,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected error occurred. Please try again later."},
     )
 
-
+# Include mentors router early
 app.include_router(mentor_router)
 
 # ====== CORS CONFIGURATION ======
@@ -690,6 +690,15 @@ def verify_jwt_token(credentials: HTTPAuthorizationCredentials = Depends(securit
         return payload
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+# ====== DEFERRED SERVICE IMPORTS (after verify_jwt_token defined) ======
+from services.user_service import router as user_router
+from services.admin_service import router as admin_router
+from services.house_service import router as house_router
+
+app.include_router(user_router)
+app.include_router(admin_router)
+app.include_router(house_router)
 
 # ====== HEALTH CHECKS ======
 @app.get("/")

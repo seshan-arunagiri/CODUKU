@@ -10,11 +10,13 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY services/auth_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy application code - copy from services/auth_service to /app
+COPY services/auth_service/app ./app
+COPY services/auth_service/app/core ./app/core
+COPY services/auth_service/app/services ./app/services
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

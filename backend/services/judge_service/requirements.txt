@@ -5,7 +5,7 @@ pydantic-settings==2.1.0
 redis==5.0.1
 httpx==0.25.0
 python-dotenv==1.0.0
-pyjwt==2.8.1
+pyjwt==2.12.1
 sqlalchemy==2.0.23
 asyncpg==0.29.0
 requests==2.31.0

@@ -12,15 +12,16 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
-    JWT_SECRET: str
+    JWT_SECRET: str = "dev-secret-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 720
 
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    # Supabase is now optional - using in-memory storage
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
-    UPSTASH_REDIS_URL: str
+    UPSTASH_REDIS_URL: str = "redis://redis:6379/0"
     REDIS_NAMESPACE: str = "coduku"
 
     JUDGE0_API_URL: str = "http://judge0:2358"

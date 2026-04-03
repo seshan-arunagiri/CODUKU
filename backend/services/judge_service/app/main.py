@@ -5,7 +5,7 @@ from datetime import datetime
 from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer
 import jwt
 from pydantic import BaseModel
 from datetime import datetime
@@ -15,7 +15,11 @@ import os
 
 from app.websocket_manager import manager
 from app.events import EventBus
-from app.services.supabase_service import supabase_service
+try:
+    from app.services.supabase_service import supabase_service
+except ImportError:
+    supabase_service = None
+from app.services.postgres_service import PostgreSQLService
 from app.services.redis_service import redis_service
 from app.services.judge0_service import judge0_service
 from app.core.config import settings
@@ -24,11 +28,14 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+if supabase_service is None:
+    logger.warning("⚠️  Supabase module not available - will use PostgreSQL only")
+
 
 security = HTTPBearer()
 
 
-def get_current_user_sync(credentials: HTTPAuthCredentials = Depends(security)) -> str:
+def get_current_user_sync(credentials = Depends(security)) -> str:
     try:
         payload = jwt.decode(
             credentials.credentials,
@@ -49,11 +56,33 @@ app = FastAPI(title="Judge Service", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],  # Allow all origins during development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    try:
+        await PostgreSQLService.init_pool()
+        logger.info("✅ PostgreSQL pool initialized")
+    except Exception as e:
+        logger.error(f"⚠️  PostgreSQL initialization failed: {e}")
+        logger.info("Falling back to Supabase (if configured)")
+    
+    try:
+        await event_bus.init()
+        await event_bus.subscribe("submission:completed", handle_submission_completed)
+        logger.info("✅ Event bus initialized")
+    except Exception as e:
+        logger.error(f"⚠️  Event bus initialization failed: {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    pass
 
 
 class SubmissionRequest(BaseModel):
@@ -87,12 +116,6 @@ async def handle_submission_completed(event_data):
     
     # Publish to leaderboard service
     await event_bus.publish("leaderboard:update", event_data)
-
-@app.on_event("startup")
-async def startup():
-    await event_bus.init()
-    # Subscribe to submission events from all services
-    await event_bus.subscribe("submission:completed", handle_submission_completed)
 
 @app.get("/health")
 def health():
@@ -137,20 +160,21 @@ async def execute_submission_background(submission_id: str, language: str, sourc
     try:
         results = await judge0_service.execute_with_test_cases(language, source_code, test_cases)
         score = 100 if results["passed"] == results["total"] and results["status"] == "accepted" else 0
-        update_data = {
-            "status": results["status"].lower().replace(" ", "_"),
-            "test_cases_passed": results["passed"],
-            "test_cases_total": results["total"],
-            "score": score,
-            "execution_details": results.get("details", []),
-            "completed_at": datetime.utcnow().isoformat()
-        }
-        await supabase_service.update_submission(submission_id, **update_data)
+        
+        # Try PostgreSQL first
+        await PostgreSQLService.update_submission(
+            submission_id,
+            results["status"].lower().replace(" ", "_"),
+            results["passed"],
+            results["total"],
+            score
+        )
+        
         if score > 0:
-            user = await supabase_service.get_submission(submission_id)
-            if user:
-                await redis_service.add_to_leaderboard("global", user["user_id"], score)
-                await handle_submission_completed({"user_id": user["user_id"], "score": score})
+            submission = await PostgreSQLService.get_submission(submission_id)
+            if submission:
+                await redis_service.add_to_leaderboard("global", submission["user_id"], score)
+                await handle_submission_completed({"user_id": submission["user_id"], "score": score})
     except Exception as e:
         logger.error(f"❌ Background execution error: {e}")
 
@@ -160,17 +184,33 @@ async def submit_code(
     background_tasks: BackgroundTasks,
     user_id: str = Depends(get_current_user_sync),
 ):
-    problem = await supabase_service.get_problem(req.problem_id)
+    # Try PostgreSQL first, fall back to Supabase
+    problem = await PostgreSQLService.get_problem(req.problem_id)
+    if not problem and supabase_service:
+        problem = await supabase_service.get_problem(req.problem_id)
+    
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
 
-    test_cases = await supabase_service.get_test_cases(req.problem_id)
+    test_cases = await PostgreSQLService.get_test_cases(req.problem_id)
+    if not test_cases and supabase_service:
+        test_cases = await supabase_service.get_test_cases(req.problem_id)
+    
     if not test_cases:
         raise HTTPException(status_code=400, detail="No test cases for this problem")
 
-    submission = await supabase_service.create_submission(
+    submission = await PostgreSQLService.create_submission(
         user_id, req.problem_id, req.language, req.source_code
     )
+    
+    if not submission and supabase_service:
+        submission = await supabase_service.create_submission(
+            user_id, req.problem_id, req.language, req.source_code
+        )
+    
+    if not submission:
+        logger.error(f"❌ Failed to create submission for user {user_id}, problem {req.problem_id}")
+        raise HTTPException(status_code=500, detail="Failed to create submission. Check server logs.")
 
     background_tasks.add_task(
         execute_submission_background,
@@ -187,18 +227,54 @@ async def submit_code(
     }
 
 
+@app.get("/api/v1/submissions/{submission_id}")
+async def get_submission_status(
+    submission_id: str,
+    user_id: str = Depends(get_current_user_sync),
+):
+    """Get submission status by ID"""
+    # Try PostgreSQL first
+    submission = await PostgreSQLService.get_submission(submission_id)
+    if not submission and supabase_service:
+        submission = await supabase_service.get_submission(submission_id)
+    
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    return {
+        "submission_id": str(submission["id"]),
+        "status": submission.get("status", "pending"),
+        "test_cases_passed": submission.get("test_cases_passed", 0),
+        "test_cases_total": submission.get("test_cases_total", 0),
+        "score": submission.get("score", 0),
+        "message": submission.get("error_message", "Processing..."),
+        "details": submission.get("details"),
+    }
+
+
 @app.get("/api/v1/problems")
 async def list_problems(limit: int = 100, offset: int = 0):
-    problems = await supabase_service.get_problems(limit, offset)
+    # Try PostgreSQL first
+    problems = await PostgreSQLService.get_problems(limit, offset)
+    if not problems and supabase_service:
+        problems = await supabase_service.get_problems(limit, offset)
     return {"problems": problems, "count": len(problems)}
 
 
 @app.get("/api/v1/problems/{problem_id}")
 async def get_problem(problem_id: int):
-    problem = await supabase_service.get_problem(problem_id)
+    # Try PostgreSQL first
+    problem = await PostgreSQLService.get_problem(problem_id)
+    if not problem and supabase_service:
+        problem = await supabase_service.get_problem(problem_id)
+    
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
-    test_cases = await supabase_service.get_test_cases(problem_id)
+    
+    test_cases = await PostgreSQLService.get_test_cases(problem_id)
+    if not test_cases and supabase_service:
+        test_cases = await supabase_service.get_test_cases(problem_id)
+    
     return {"problem": problem, "test_cases": test_cases}
 
 

@@ -18,10 +18,13 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_HOURS: int = 720
 
+    # ===== PostgreSQL =====
+    POSTGRES_URL: str = "postgresql://postgres:postgres@postgres:5432/coduku"
+
     # ===== Supabase =====
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_SERVICE_ROLE_KEY: str
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
     # ===== Redis =====
     UPSTASH_REDIS_URL: str
@@ -35,6 +38,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost",
+        "http://localhost:80",
+        "*",  # Allow all origins during development
     ]
 
     # ===== DB =====
