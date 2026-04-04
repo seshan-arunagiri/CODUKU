@@ -1,4 +1,6 @@
-﻿"use client";
+﻿const fs = require('fs'), path = require('path');
+
+const content = `"use client";
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
@@ -14,7 +16,6 @@ import ReactionBar from './components/ReactionBar';
 import FollowUps, { parseFollowUps } from './components/FollowUps';
 import ChallengeCard, { parseChallenge } from './components/ChallengeCard';
 import styles from './page.module.css';
-import HpSidePanel from './components/HpSidePanel';
 
 interface ProblemContext {
   title?: string; description?: string; constraints?: string; examples?: string;
@@ -93,7 +94,7 @@ function ChatApp() {
   useEffect(() => { if (searchOpen) setTimeout(() => searchRef.current?.focus(), 50); }, [searchOpen]);
   useEffect(() => { if (editingId)  setTimeout(() => editRef.current?.focus(),   50); }, [editingId]);
 
-  // Stable transport â€” only recreates when problem identity changes, not on hintLevel
+  // Stable transport — only recreates when problem identity changes, not on hintLevel
   const contextRef = useRef(problemContext);
   useEffect(() => { contextRef.current = problemContext; }, [problemContext]);
 
@@ -105,7 +106,7 @@ function ChatApp() {
 
   const { messages, sendMessage, setMessages, status, error, clearError } = useChat({ transport });
   const isLoading  = status === 'submitted' || status === 'streaming';
-  const storageKey = `hp_mentor_${problemContext.title ?? 'general'}`;
+  const storageKey = \`hp_mentor_\${problemContext.title ?? 'general'}\`;
 
   useEffect(() => {
     if (!isMounted || messages.length > 0) return;
@@ -200,7 +201,7 @@ function ChatApp() {
   }, [searchQuery, messages]);
 
   const suggestions = hasProblem
-    ? [`How should I think about "${problemContext.title}"?`, 'What algorithm pattern fits?', 'Walk me through the approach', 'What edge cases matter?']
+    ? [\`How should I think about "\${problemContext.title}"?\`, 'What algorithm pattern fits?', 'Walk me through the approach', 'What edge cases matter?']
     : ['What is two pointer technique?', 'Explain binary search with example', 'When to use dynamic programming?', 'How does sliding window work?'];
 
   const resultColor: Record<string,string> = { WA:'#e05c5c', TLE:'#f59e0b', RE:'#a78bfa', MLE:'#f97316', AC:'#4ade80' };
@@ -212,15 +213,23 @@ function ChatApp() {
   return (
     <div className={styles.shell}>
       {sidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setSidebarOpen(false)} />}
-      <HpSidePanel />
 
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ''}`}>
+      <aside className={\`\${styles.sidebar} \${sidebarOpen ? styles.open : ''}\`}>
         <div className={styles.crest}>
           <Zap size={28} className={styles.crestIcon} />
           <div className={styles.crestTitle}>Mentor House</div>
           <div className={styles.crestSub}>"Draco Dormiens Nunquam Titillandus"</div>
         </div>
 
+        <div className={styles.scroll}>
+          <span className={styles.scrollLabel}>{hasProblem ? 'Current Challenge' : 'Mode'}</span>
+          <span className={styles.scrollTitle}>{hasProblem ? problemContext.title : 'Open Study Hall'}</span>
+          <div style={{ display:'flex', gap:'0.4rem', flexWrap:'wrap', marginTop:'0.3rem' }}>
+            <span className={styles.scrollBadge}>{hasProblem ? 'Spell Active' : 'General Practice'}</span>
+            {(liveCode ?? urlContext.studentCode) && <span className={styles.scrollBadge}>Code Synced</span>}
+            {problemContext.language && <span className={styles.scrollBadge}>{problemContext.language}</span>}
+          </div>
+        </div>
 
         {result && result !== 'AC' && (
           <div className={styles.resultCard} style={{ borderColor: resultColor[result] ?? '#555' }}>
@@ -291,12 +300,13 @@ function ChatApp() {
         <div className={styles.header}>
           <div className={styles.headerLeft}>
             <button className={styles.menuBtn} onClick={() => setSidebarOpen(o => !o)}><Menu size={16}/></button>
-            {hasProblem && <span className={styles.headerText}>Assigned: <span className={styles.headerProblem}>{problemContext.title}</span></span>}
-
-
+            <span className={styles.headerOrb} />
+            <span className={styles.headerText}>
+              {hasProblem ? <>Assigned: <span className={styles.headerProblem}>{problemContext.title}</span></> : 'Defence Against Dark Algorithms'}
+            </span>
           </div>
           <div className={styles.headerActions}>
-            <button className={`${styles.searchBtn} ${searchOpen ? styles.active : ''}`}
+            <button className={\`\${styles.searchBtn} \${searchOpen ? styles.active : ''}\`}
               onClick={() => { setSearchOpen(o => !o); setSearchQuery(''); }} title="Search">
               <Search size={14}/>
             </button>
@@ -321,11 +331,11 @@ function ChatApp() {
           {messages.length === 0 ? (
             <div className={styles.empty}>
               <Wand2 size={44} className={styles.emptyIcon}/>
-              <h2 className={styles.emptyTitle}>{hasProblem ? `Let us unravel "${problemContext.title}"` : 'What shall we study today?'}</h2>
+              <h2 className={styles.emptyTitle}>{hasProblem ? \`Let us unravel "\${problemContext.title}"\` : 'What shall we study today?'}</h2>
               <p className={styles.emptyQuote}>
                 {hasProblem
-                  ? `"It is our choices that show what we truly are." I won't hand you the answer â€” I'll show you how to think your way to it.`
-                  : `"It does not do to dwell on answers and forget to think." Ask me anything â€” I'll guide your reasoning, not replace it.`}
+                  ? \`"It is our choices that show what we truly are." I won't hand you the answer — I'll show you how to think your way to it.\`
+                  : \`"It does not do to dwell on answers and forget to think." Ask me anything — I'll guide your reasoning, not replace it.\`}
               </p>
               <div className={styles.spellCards}>
                 {suggestions.map(q => (
@@ -344,11 +354,11 @@ function ChatApp() {
                 const isMatch     = !!(searchQuery.trim() && matchingIds.has(m.id));
                 const isEditing   = editingId === m.id;
                 return (
-                  <div key={m.id} className={`${styles.row} ${isUser ? styles.rowUser : ''} ${isMatch ? styles.rowHighlight : ''}`}>
-                    <div className={`${styles.avatar} ${isUser ? styles.avatarUser : styles.avatarBot}`}>
+                  <div key={m.id} className={\`\${styles.row} \${isUser ? styles.rowUser : ''} \${isMatch ? styles.rowHighlight : ''}\`}>
+                    <div className={\`\${styles.avatar} \${isUser ? styles.avatarUser : styles.avatarBot}\`}>
                       {isUser ? <User size={14}/> : <Bot size={14}/>}
                     </div>
-                    <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleBot}`}>
+                    <div className={\`\${styles.bubble} \${isUser ? styles.bubbleUser : styles.bubbleBot}\`}>
                       <div className={styles.bubbleName}>{isUser ? 'Student' : 'Mentor'}</div>
                       {isUser && isEditing ? (
                         <div className={styles.editWrap}>
@@ -365,7 +375,7 @@ function ChatApp() {
                           <div className="prose">
                             {isUser ? <p>{rawText}</p> : <TypewriterText text={rawText} isStreaming={isStreaming}/>}
                           </div>
-                          <div className={`${styles.msgActions} ${isUser ? styles.msgActionsUser : styles.msgActionsBot}`}>
+                          <div className={\`\${styles.msgActions} \${isUser ? styles.msgActionsUser : styles.msgActionsBot}\`}>
                             <button className={styles.msgActionBtn} title="Copy"
                               onClick={() => copyMessage(m.id, isUser ? rawText : getCleanText(m))}>
                               {copiedId === m.id ? <Check size={12}/> : <Copy size={12}/>}
@@ -396,8 +406,8 @@ function ChatApp() {
               })}
               {isLoading && (
                 <div className={styles.row}>
-                  <div className={`${styles.avatar} ${styles.avatarBot}`}><Bot size={14}/></div>
-                  <div className={`${styles.bubble} ${styles.bubbleBot}`}>
+                  <div className={\`\${styles.avatar} \${styles.avatarBot}\`}><Bot size={14}/></div>
+                  <div className={\`\${styles.bubble} \${styles.bubbleBot}\`}>
                     <div className={styles.bubbleName}>Mentor</div>
                     <div className={styles.typing}><span/><span/><span/></div>
                   </div>
@@ -411,7 +421,7 @@ function ChatApp() {
         <div className={styles.inputBar}>
           <div className={styles.inputWrap}>
             <textarea ref={textareaRef} className={styles.inputField} value={input} rows={1}
-              placeholder={hasProblem ? `Ask about "${problemContext.title}"...` : "Ctrl+C won't make you a coder"}
+              placeholder={hasProblem ? \`Ask about "\${problemContext.title}"...\` : 'Ask your question here...'}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();} }}
               disabled={isLoading}/>
@@ -425,3 +435,7 @@ function ChatApp() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync(path.join(__dirname, '..', 'src', 'app', 'page.tsx'), content, 'utf8');
+console.log('Written:', fs.statSync(path.join(__dirname, '..', 'src', 'app', 'page.tsx')).size, 'bytes');

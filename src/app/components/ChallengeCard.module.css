@@ -1,0 +1,97 @@
+.card {
+  margin-top: 1rem;
+  padding: 0.9rem 1.1rem;
+  background: linear-gradient(135deg, rgba(124,77,189,0.12), rgba(201,168,76,0.06));
+  border: 1px solid rgba(124,77,189,0.35);
+  border-left: 3px solid var(--purple);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.icon { font-size: 0.95rem; }
+
+.title {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--purple-light);
+}
+
+.solvedBadge {
+  margin-left: auto;
+  font-size: 0.68rem;
+  color: var(--green);
+  background: rgba(92,184,92,0.12);
+  border: 1px solid rgba(92,184,92,0.3);
+  padding: 0.15rem 0.5rem;
+  border-radius: 99px;
+  font-family: var(--font-display);
+}
+
+.problem {
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.hintBtn, .answerBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0.28rem 0.75rem;
+  border-radius: 99px;
+  font-family: var(--font-serif);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.hintBtn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.answerBtn:hover {
+  border-color: var(--purple-light);
+  color: var(--purple-light);
+}
+
+.hint {
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-style: italic;
+}
+
+.answer {
+  font-family: var(--font-serif);
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.answer code {
+  font-family: var(--font-mono);
+  font-size: 0.83em;
+  background: rgba(124,77,189,0.18);
+  border: 1px solid var(--border);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
+  color: var(--purple-light);
+}

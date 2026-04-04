@@ -1,0 +1,22 @@
+
+> chatbot@0.1.0 build
+> next build
+
+▲ Next.js 16.2.2 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.7s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/page.tsx:23:21
+Type error: Property 'input' does not exist on type 'UseChatHelpers<UIMessage<unknown, UIDataTypes, UITools>>'.
+
+  [90m21 |[0m   }, []);
+  [90m22 |[0m
+[31m[1m>[0m [90m23 |[0m   [36mconst[0m { messages, input, handleInputChange, handleSubmit, setMessages, isLoading } = use...
+  [90m   |[0m                     [31m[1m^[0m
+  [90m24 |[0m     api: [32m'/api/chat'[0m,
+  [90m25 |[0m     headers: {
+  [90m26 |[0m       [32m'x-groq-api-key'[0m: apiKey || [32m''[0m
+Next.js build worker exited with code: 1 and signal: null

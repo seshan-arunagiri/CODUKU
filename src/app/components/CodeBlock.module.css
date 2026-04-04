@@ -1,0 +1,41 @@
+.wrapper {
+  border-radius: 10px;
+  border: 1px solid #2a2040;
+  overflow: hidden;
+  margin: 0.75em 0;
+  background: #0d0b14;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 1rem;
+  background: #1a1530;
+  border-bottom: 1px solid #2a2040;
+}
+
+.lang {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: #7c6af7;
+  text-transform: lowercase;
+  letter-spacing: 0.5px;
+}
+
+.copyBtn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  background: transparent;
+  border: 1px solid #3a3060;
+  color: #8888aa;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.copyBtn:hover {
+  border-color: #c9a84c;
+  color: #c9a84c;
+}
