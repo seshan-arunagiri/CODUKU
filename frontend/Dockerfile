@@ -1,24 +1,34 @@
-# Stage 1 — Build
-FROM node:18-alpine AS build
+# ===== BUILD STAGE =====
+FROM node:18-alpine AS builder
 
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
-RUN npm ci --silent
+
+# Install dependencies with legacy peer deps for React, testing-library compatibility
+RUN npm cache clean --force && \
+    npm install --legacy-peer-deps
+
+# Copy source code
 COPY . .
+
+# Build React app for production
 RUN npm run build
 
-# Stage 2 — Serve with nginx
-FROM nginx:stable-alpine
+# ===== PRODUCTION STAGE =====
+FROM nginx:alpine
 
-COPY --from=build /app/build /usr/share/nginx/html
+# Copy built React app
+COPY --from=builder /app/build /usr/share/nginx/html
 
-# Nginx config: serve index.html for all routes (React SPA)
-RUN echo 'server { \
-  listen 80; \
-  root /usr/share/nginx/html; \
-  index index.html; \
-  location / { try_files $uri $uri/ /index.html; } \
-}' > /etc/nginx/conf.d/default.conf
+# Copy nginx config for SPA routing
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,14 +1,19 @@
 {
-  "name": "codehouses-frontend",
-  "version": "1.0.0",
+  "name": "coduku-frontend",
+  "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost",
   "dependencies": {
-    "@monaco-editor/react": "^4.7.0",
-    "lucide-react": "^1.7.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "@monaco-editor/react": "^4.6.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
     "react-scripts": "5.0.1",
-    "react-split": "^2.0.14"
+    "web-vitals": "^2.1.4",
+    "zustand": "^5.0.12"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -18,7 +23,8 @@
   },
   "eslintConfig": {
     "extends": [
-      "react-app"
+      "react-app",
+      "react-app/jest"
     ]
   },
   "browserslist": {
@@ -33,5 +39,15 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:5000"
+  "devDependencies": {
+    "ajv": "^8.18.0"
+  },
+  "resolutions": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
 }

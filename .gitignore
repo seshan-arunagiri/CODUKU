@@ -1,51 +1,41 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-venv/
-ENV/
-env/
-
-# Node
+# Node modules
 node_modules/
-npm-debug.log
-yarn-error.log
-.npm
+build/
+dist/
+.DS_Store
+
+# Python & Virtual Env
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Environment variables
 .env
 .env.local
 .env.*.local
 
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database & Cache
+mongodb_data/
+judge0-db-data/
+*.rdb
+coduku.db
+test.db
+
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-.DS_Store
 
-# OS
-Thumbs.db
-
-# Sensitive files
-*.key
-*.pem
-.ssh/
+# Context Pilot — mutable AI state (don't commit)
+AI-TASK.md
+AI-MEMORY.md
