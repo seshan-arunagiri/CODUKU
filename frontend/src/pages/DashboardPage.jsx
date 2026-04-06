@@ -61,7 +61,8 @@ function DashboardPage() {
         setLeaderboard(data.leaderboard || data.users || []);
       }
       if (housesRes.status === 'fulfilled') {
-        setHouseBoard(housesRes.value || {});
+        const hData = housesRes.value;
+        setHouseBoard(hData?.houses || hData || {});
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

@@ -143,3 +143,45 @@ class PostgreSQLService:
         except Exception as e:
             logger.error(f"❌ Failed to get submission {submission_id}: {e}")
             return None
+    
+    @classmethod
+    async def update_leaderboard(cls, user_id: str, problem_id: int, score: int, is_accepted: bool, submission_id: str = None) -> bool:
+        """Update leaderboard after submission"""
+        try:
+            async with cls._pool.acquire() as conn:
+                if not is_accepted:
+                    return False
+                
+                # Count accepted submissions for this problem (excluding current one if provided)
+                if submission_id:
+                    count = await conn.fetchval(
+                        "SELECT COUNT(*) FROM submissions WHERE user_id = $1 AND problem_id = $2 AND status = 'accepted' AND id != $3",
+                        user_id, problem_id, submission_id
+                    )
+                else:
+                    count = await conn.fetchval(
+                        "SELECT COUNT(*) FROM submissions WHERE user_id = $1 AND problem_id = $2 AND status = 'accepted'",
+                        user_id, problem_id
+                    )
+                
+                # Only update if this is the FIRST accepted submission for this problem
+                if count == 0:
+                    await conn.execute(
+                        """
+                        UPDATE leaderboard
+                        SET total_score = total_score + $1,
+                            problems_solved = problems_solved + 1,
+                            last_submission = NOW(),
+                            updated_at = NOW()
+                        WHERE user_id = $2
+                        """,
+                        score, user_id
+                    )
+                    logger.info(f"✅ Updated leaderboard for user {user_id}: +{score} points, +1 problem")
+                    return True
+                else:
+                    logger.debug(f"⚠️  Skipped leaderboard update for user {user_id}, problem {problem_id} (user already solved this problem)")
+                    return False
+        except Exception as e:
+            logger.error(f"❌ Failed to update leaderboard for user {user_id}: {e}")
+            return False

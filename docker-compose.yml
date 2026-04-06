@@ -14,10 +14,11 @@ services:
     networks:
       - coduku
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ===== AUTH SERVICE (Port 8001) =====
   auth:
@@ -41,9 +42,10 @@ services:
       - coduku
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ===== JUDGE SERVICE (Port 8002) =====
   judge:
@@ -53,8 +55,8 @@ services:
     environment:
       SERVICE_NAME: judge
       SERVICE_PORT: 8002
-      JUDGE0_API_URL: http://judge0:2358
-      # Shared JWT + Supabase so judge can verify tokens and read problems/submissions.
+      JUDGE0_URL: http://judge0:2358
+      LEADERBOARD_URL: http://leaderboard:8003
       JWT_SECRET: ${JWT_SECRET}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
@@ -63,16 +65,18 @@ services:
     ports:
       - "8002:8002"
     depends_on:
-      - judge0
-      - redis
-      - postgres
+      judge0:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - coduku
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ===== LEADERBOARD SERVICE (Port 8003) =====
   leaderboard:
@@ -93,9 +97,10 @@ services:
       - coduku
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ===== MENTOR/AI SERVICE (Port 8004) =====
   mentor:
@@ -119,9 +124,10 @@ services:
       - coduku
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
   # ===== JUDGE0 EXECUTION ENGINE =====
   judge0:
@@ -132,13 +138,22 @@ services:
       JUDGE0_WORKERS: 4
       JUDGE0_CPU_TIME_LIMIT: 5
       JUDGE0_MEMORY_LIMIT: 262144
+      RAILS_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/coduku
     networks:
       - coduku
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2358/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:2358/"]
       interval: 10s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 40
+      start_period: 120s
+    restart: unless-stopped
+    volumes:
+      - judge0_data:/var/lib/judge0
 
   # ===== REDIS CACHE =====
   redis:
@@ -163,6 +178,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
     networks:
       - coduku
     healthcheck:
@@ -184,9 +200,10 @@ services:
       - coduku
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # ===== FRONTEND =====
   frontend:
@@ -202,10 +219,17 @@ services:
       - gateway
     networks:
       - coduku
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
 
 volumes:
   postgres_data:
   chromadb_data:
+  judge0_data:
 
 networks:
   coduku:
