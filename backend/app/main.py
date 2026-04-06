@@ -267,6 +267,18 @@ async def list_problems(limit: int = 100, offset: int = 0):
         "total": 1000  # Mock total
     }
 
+# Alias endpoint for frontend compatibility
+@app.get(f"{settings.API_PREFIX}/questions")
+async def list_questions(limit: int = 100, offset: int = 0):
+    """Alias for list_problems - returns all questions/problems"""
+    
+    problems = await supabase_service.get_problems(limit, offset)
+    return {
+        "problems": problems,
+        "count": len(problems),
+        "total": 1000  # Mock total
+    }
+
 @app.get(f"{settings.API_PREFIX}/problems/{{problem_id}}")
 async def get_problem(problem_id: int):
     """Get problem with test cases"""

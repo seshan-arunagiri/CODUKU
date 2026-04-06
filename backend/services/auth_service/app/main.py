@@ -10,6 +10,7 @@ import os
 
 from app.core.config import settings
 from app.services.redis_service import redis_service
+from app.services.postgres_service import PostgreSQLService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,6 +21,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _users_db = {}  # email -> user_data dict
 
 app = FastAPI(title="Auth Service", version="2.0.0")
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize PostgreSQL pool on startup"""
+    await PostgreSQLService.init_pool()
+    logger.info("✅ PostgreSQL service initialized")
+
+@app.middleware("http")
+async def db_session_middleware(request, call_next):
+    # This just ensures we can talk to PG
+    response = await call_next(request)
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -105,9 +118,15 @@ async def register(req: RegisterRequest):
         "problems_solved": 0,
     }
     
-    # Store in memory
+    # Store in memory (for speed/fallback)
     _users_db[req.email] = user_data
-    logger.info(f"✅ User created: {req.email} (House: {req.house})")
+    logger.info(f"✅ User stored in memory: {req.email}")
+    
+    # Store in PostgreSQL (for persistence across services)
+    await PostgreSQLService.create_user(
+        user_id, req.email, req.username, user_data["password_hash"], req.house
+    )
+    logger.info(f"✅ User persisted to DB: {req.email}")
     
     # Create JWT token
     token = create_access_token(user_id, req.email)
@@ -127,6 +146,14 @@ async def login(req: LoginRequest):
     
     # Find user in memory
     user = _users_db.get(req.email)
+    
+    # Fallback to DB if not in memory
+    if not user:
+        user = await PostgreSQLService.get_user_by_email(req.email)
+        if user:
+            _users_db[req.email] = user # Cache back to memory
+            logger.info(f"✅ User found in DB and cached: {req.email}")
+            
     if not user:
         logger.warning(f"❌ User not found: {req.email}")
         raise HTTPException(status_code=401, detail="Invalid credentials")

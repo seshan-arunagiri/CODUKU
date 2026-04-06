@@ -177,12 +177,18 @@ function CodeEditor() {
   };
 
   const handleAskAI = async () => {
+    if (!code.trim() || !selected) return;
+    
     setAiLoading(true);
     setAiFeedback('');
     try {
-      setAiFeedback('🧙 AI Mentor is analyzing your code... Feature coming soon!');
+      // Import mentorAPI from apiService if not already (it is imported at the top)
+      const { mentorAPI } = await import('../services/apiService');
+      const res = await mentorAPI.getHint(selected.id, language, code);
+      setAiFeedback(res.analysis || res.hint || 'No specific hints yet. Keep trying!');
     } catch (err) {
-      setAiFeedback('AI Mentor is currently unavailable.');
+      console.error('Mentor error:', err);
+      setAiFeedback('🧙 The mentor is currently mediatating. Please try again later.');
     } finally {
       setAiLoading(false);
     }

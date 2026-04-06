@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { useAuthStore } from './store/authStore';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
-import CodeEditor from './pages/CodeEditor';
+import CodeArena from './pages/CodeArena';
 import LeaderboardPage from './pages/LeaderboardPage';
 import './App.css';
 
@@ -154,7 +154,7 @@ function App() {
           path="/editor"
           element={
             <ProtectedLayout>
-              <CodeEditor />
+              <CodeArena />
             </ProtectedLayout>
           }
         />

@@ -39,3 +39,75 @@ test.db
 # Context Pilot — mutable AI state (don't commit)
 AI-TASK.md
 AI-MEMORY.md
+AI-RULES.md
+
+# Docker volumes and data
+postgres_data/
+chromadb_data/
+judge0_data/
+redis_data/
+docker_data/
+.docker/
+
+# Temporary files and backups
+*.bak
+*.backup
+*~
+*.tmp
+*.temp
+.cache
+.parcel-cache
+
+# IDE & editors
+.vscode/
+.idea/
+.continue/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Build files
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Browser
+coverage/
+
+# OS specific
+Thumbs.db
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Keep frontend public assets but ignore others
+frontend/build/
+frontend/dist/
+!frontend/public/
+
+# Backend specific
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Frontend specific
+frontend/node_modules/
+.next/
+out/

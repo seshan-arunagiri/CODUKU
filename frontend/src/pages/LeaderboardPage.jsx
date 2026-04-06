@@ -33,7 +33,8 @@ function LeaderboardPage() {
         setLeaderboard(data.leaderboard || data.users || []);
       }
       if (houseRes.status === 'fulfilled') {
-        setHouseBoard(houseRes.value || {});
+        const hData = houseRes.value;
+        setHouseBoard(hData?.houses || hData || {});
       }
     } catch (error) {
       console.error('Failed to fetch leaderboards:', error);
