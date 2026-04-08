@@ -36,21 +36,20 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Create submissions table
 CREATE TABLE IF NOT EXISTS submissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    problem_id INTEGER NOT NULL REFERENCES problems(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    problem_id INTEGER NOT NULL,
     language VARCHAR(50) NOT NULL,
     source_code TEXT NOT NULL,
-    status VARCHAR(30) DEFAULT 'pending',
-    test_cases_passed INTEGER DEFAULT 0,
-    test_cases_total INTEGER DEFAULT 0,
+    verdict VARCHAR(50) DEFAULT 'Pending',
     score INTEGER DEFAULT 0,
+    passed_tests INTEGER DEFAULT 0,
+    total_tests INTEGER DEFAULT 0,
+    execution_time FLOAT DEFAULT 0.0,
+    compile_error TEXT,
+    runtime_error TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    execution_time FLOAT,
-    memory_used INTEGER,
-    error_message TEXT,
-    details JSONB
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create leaderboard table
@@ -120,5 +119,6 @@ WHERE NOT EXISTS (SELECT 1 FROM test_cases LIMIT 1);
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_submissions_user_id ON submissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_submissions_problem_id ON submissions(problem_id);
-CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
+CREATE INDEX IF NOT EXISTS idx_submissions_verdict ON submissions(verdict);
+CREATE INDEX IF NOT EXISTS idx_submissions_created_at ON submissions(created_at);
 CREATE INDEX IF NOT EXISTS idx_leaderboard_score ON leaderboard(total_score DESC);
