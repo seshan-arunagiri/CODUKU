@@ -1,55 +1,40 @@
 """
-CODUKU Judge Service - Production-Ready v2
-Complete with:
-- All 8 problems properly defined
-- Judge0 integration with all languages
-- Detailed verdict results (Accepted / Wrong Answer / Runtime Error / etc.)
-- Real-time leaderboard updates on success
-- Test case details in response
-- Proper output normalization
+CODUKU Judge Service - Production Ready
+Handles code submission evaluation, Judge0 integration, and leaderboard updates.
+Supports 13+ programming languages with detailed test case feedback.
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Optional, Dict, Any
 import httpx
 import asyncio
-from fastapi.middleware.cors import CORSMiddleware
-import uuid
-import os
-import json
 import logging
-from contextlib import asynccontextmanager
+import os
+import re
+from enum import Enum
 from datetime import datetime
+import json
+import uuid
+from app.services.output_normalizer import OutputNormalizer
+from app.services.database_service import DatabaseService
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
-# Try to import PostgreSQL service
-try:
-    from app.services.postgres_service import PostgreSQLService
-    HAS_POSTGRES = True
-except ImportError:
-    HAS_POSTGRES = False
-    logger.warning("PostgreSQL service not available, running in-memory only")
+# Initialize FastAPI app
+app = FastAPI(
+    title="CODUKU Judge Service",
+    description="Code submission evaluation and language compilation service",
+    version="1.0.0"
+)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    if HAS_POSTGRES:
-        try:
-            await PostgreSQLService.init_pool()
-            logger.info("✅ Judge Service started with PostgreSQL pool initialized")
-        except Exception as e:
-            logger.warning(f"⚠️ PostgreSQL init failed: {e}")
-    logger.info("✅ Judge Service started - All languages ready")
-    yield
-    logger.info("⚠️ Judge Service shutting down")
-
-
-app = FastAPI(title="CODUKU Judge Service - Production Ready", lifespan=lifespan)
-
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,724 +43,899 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# =====================================================================
-# CONFIGURATION
-# =====================================================================
-
-JUDGE0_URL = os.environ.get("JUDGE0_URL", "http://judge0:2358")
-LEADERBOARD_URL = os.environ.get("LEADERBOARD_URL", "http://leaderboard:8003")
-JWT_SECRET = os.environ.get("JWT_SECRET", "secret")
-
-logger.info(f"🔗 Judge0 URL: {JUDGE0_URL}")
-logger.info(f"🔗 Leaderboard URL: {LEADERBOARD_URL}")
-
-active_submissions: Dict[str, Dict] = {}
-
-# =====================================================================
-# REQUEST MODELS
-# =====================================================================
+# ============= CONFIGURATION =============
+JUDGE0_URL = os.getenv("JUDGE0_URL", "http://judge0:2358")
+LEADERBOARD_URL = os.getenv("LEADERBOARD_URL", "http://leaderboard:8003")
+JUDGE0_API_KEY = os.getenv("JUDGE0_API_KEY", "")
 
 
-class SubmissionRequest(BaseModel):
-    problem_id: int
-    language: str
-    source_code: str
-    user_id: Optional[str] = None
+@app.on_event("startup")
+async def startup():
+    await DatabaseService.initialize()
+
+
+# Language ID mappings (Judge0 official IDs)
+LANGUAGE_IDS = {
+    "python": 71,
+    "python3": 71,
+    "python2": 71,
+    "java": 62,
+    "cpp": 54,
+    "cpp17": 54,
+    "c++": 54,
+    "c": 50,
+    "javascript": 63,
+    "js": 63,
+    "node": 63,
+    "typescript": 74,
+    "ts": 74,
+    "go": 60,
+    "rust": 73,
+    "csharp": 51,
+    "c#": 51,
+    "cs": 51,
+    "ruby": 72,
+    "php": 68,
+    "swift": 83,
+    "kotlin": 78,
+}
+
+# ============= DATA MODELS =============
+
+class VerdictEnum(str, Enum):
+    """Submission verdict status codes"""
+    ACCEPTED = "Accepted"
+    WRONG_ANSWER = "Wrong Answer"
+    RUNTIME_ERROR = "Runtime Error"
+    TIME_LIMIT = "Time Limit Exceeded"
+    COMPILATION_ERROR = "Compilation Error"
+    PARTIAL = "Partially Correct"
+    PENDING = "Pending"
 
 
 class TestCaseResult(BaseModel):
+    """Individual test case result"""
     test_case_number: int
     input: str
     expected_output: str
     actual_output: str
     passed: bool
-    runtime_error: Optional[str] = None
+    runtime_ms: Optional[float] = None
+    memory_mb: Optional[float] = None
+    error: Optional[str] = None
 
 
-class SubmissionResponse(BaseModel):
+class SubmissionResult(BaseModel):
+    """Complete submission evaluation result"""
     submission_id: str
-    status: str
-    message: str
-    verdict: Optional[str] = None
-    passed_tests: Optional[int] = None
-    total_tests: Optional[int] = None
-    test_cases: Optional[List[TestCaseResult]] = None
-    score: Optional[int] = None
+    verdict: VerdictEnum
+    total_test_cases: int
+    passed_test_cases: int
+    language: str
+    runtime_ms: Optional[float] = None
+    memory_mb: Optional[float] = None
+    compilation_error: Optional[str] = None
+    test_cases: List[TestCaseResult]
+    score: int  # Points earned (0-100 based on difficulty)
+    submitted_code: str
+    submission_time: str
 
 
-# =====================================================================
-# LANGUAGE MAPPING (Judge0 API language IDs)
-# =====================================================================
+class ProblemExample(BaseModel):
+    """Example input/output for a problem"""
+    input: str
+    output: str
+    explanation: Optional[str] = None
 
-LANGUAGE_MAP = {
-    "python": 71,
-    "python3": 71,
-    "cpp": 54,
-    "c++": 54,
-    "java": 62,
-    "javascript": 63,
-    "go": 60,
-    "rust": 73,
-    "c": 50,
-    "csharp": 51,
-    "c#": 51,
-    "ruby": 72,
-    "php": 68,
-    "kotlin": 48,
-    "scala": 56,
-    "swift": 19,
+
+class TestCase(BaseModel):
+    """Test case for a problem"""
+    input: str
+    expected_output: str
+
+
+class Problem(BaseModel):
+    """Coding problem definition"""
+    id: int
+    title: str
+    description: str
+    difficulty: str  # Easy, Medium, Hard
+    points: int  # Points awarded on "Accepted"
+    examples: List[ProblemExample]
+    test_cases: List[TestCase]
+    constraints: str
+    time_limit_seconds: int
+    memory_limit_mb: int
+
+
+class SubmissionRequest(BaseModel):
+    """Submission payload"""
+    problem_id: int
+    language: str
+    code: str
+    user_id: str
+    username: str
+    house: str
+
+
+class RunSubmissionRequest(BaseModel):
+    """Request to run code on specific test cases"""
+    problem_id: int
+    language: str
+    code: str
+    test_cases: List[Dict[str, str]] = None  # Override test cases
+
+
+# ============= PROBLEM BANK =============
+
+PROBLEMS: Dict[int, Problem] = {
+    1: Problem(
+        id=1,
+        title="Two Sum",
+        description="""Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target.
+
+You may assume each input has exactly one solution, and you cannot use the same element twice.
+
+Return the answer in any order.""",
+        difficulty="Easy",
+        points=10,
+        examples=[
+            ProblemExample(
+                input="nums = [2,7,11,15], target = 9",
+                output="[0,1]",
+                explanation="nums[0] + nums[1] == 9, so we return [0, 1]."
+            ),
+            ProblemExample(
+                input="nums = [3,2,4], target = 6",
+                output="[1,2]",
+                explanation="nums[1] + nums[2] == 6, so we return [1, 2]."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="[2,7,11,15]\n9", expected_output="[0,1]"),
+            TestCase(input="[3,2,4]\n6", expected_output="[1,2]"),
+            TestCase(input="[3,3]\n6", expected_output="[0,1]"),
+            TestCase(input="[2,5,5,11]\n10", expected_output="[1,2]"),
+        ],
+        constraints="2 <= nums.length <= 10^4, -10^9 <= nums[i] <= 10^9, -10^9 <= target <= 10^9",
+        time_limit_seconds=1,
+        memory_limit_mb=256
+    ),
+    2: Problem(
+        id=2,
+        title="Reverse String",
+        description="""Write a function that reverses a string. The input string is given as an array of characters s.
+
+You must do this by modifying the input array in-place with O(1) extra memory.""",
+        difficulty="Easy",
+        points=10,
+        examples=[
+            ProblemExample(
+                input='s = ["h","e","l","l","o"]',
+                output='["o","l","l","e","h"]',
+                explanation="Characters in the string are reversed."
+            ),
+            ProblemExample(
+                input='s = ["H","a","n","n","a","h"]',
+                output='["h","a","n","n","a","H"]',
+                explanation="Characters are reversed in-place."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="hello", expected_output="olleh"),
+            TestCase(input="Hannah", expected_output="hannaH"),
+            TestCase(input="a", expected_output="a"),
+            TestCase(input="ab", expected_output="ba"),
+        ],
+        constraints="1 <= s.length <= 10^5, s[i] is an ASCII character.",
+        time_limit_seconds=1,
+        memory_limit_mb=256
+    ),
+    3: Problem(
+        id=3,
+        title="Palindrome Number",
+        description="""Given an integer x, return true if x is palindromic integer.
+
+An integer is a palindrome when it reads the same backward as forward.
+
+Negative integers are not palindromes. Numbers ending with 0 are not palindromes (except 0 itself).""",
+        difficulty="Easy",
+        points=10,
+        examples=[
+            ProblemExample(
+                input="x = 121",
+                output="true",
+                explanation="121 reads as 121 from left to right and from right to left."
+            ),
+            ProblemExample(
+                input="x = -121",
+                output="false",
+                explanation="From left to right, it reads -121. From right to left, it becomes 121-. Therefore it is not a palindrome."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="121", expected_output="true"),
+            TestCase(input="-121", expected_output="false"),
+            TestCase(input="10", expected_output="false"),
+            TestCase(input="0", expected_output="true"),
+        ],
+        constraints="-2^31 <= x <= 2^31 - 1",
+        time_limit_seconds=1,
+        memory_limit_mb=256
+    ),
+    4: Problem(
+        id=4,
+        title="Valid Parentheses",
+        description="""Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.
+
+An input string is valid if:
+- Open brackets are closed by the same type of brackets.
+- Open brackets are closed in the correct order.
+- Every close bracket has a corresponding open bracket of the same type.""",
+        difficulty="Easy",
+        points=10,
+        examples=[
+            ProblemExample(
+                input='s = "()"',
+                output="true",
+                explanation="All brackets are properly matched."
+            ),
+            ProblemExample(
+                input='s = "([{}])"',
+                output="true",
+                explanation="Nested and properly matched brackets."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="()", expected_output="true"),
+            TestCase(input="([{}])", expected_output="true"),
+            TestCase(input="(]", expected_output="false"),
+            TestCase(input="([)]", expected_output="false"),
+        ],
+        constraints="1 <= s.length <= 10^4, s[i] is '(', ')', '{', '}', '[' or ']'.",
+        time_limit_seconds=1,
+        memory_limit_mb=256
+    ),
+    5: Problem(
+        id=5,
+        title="Merge Sorted Array",
+        description="""You are given two integer arrays nums1 and nums2, sorted in non-decreasing order, and two integers m and n, 
+representing the number of valid elements in nums1 and nums2 respectively.
+
+Merge nums2 into nums1 as one sorted array.
+
+Note: The number of elements initialized in nums1 and nums2 are m and n respectively. You may assume that nums1 has a total length of m + n, 
+that it has enough space to hold additional elements from nums2.""",
+        difficulty="Easy",
+        points=15,
+        examples=[
+            ProblemExample(
+                input="nums1 = [1,2,3,0,0,0], m = 3, nums2 = [2,5,6], n = 3",
+                output="[1,2,2,3,5,6]",
+                explanation="Arrays are merged into sorted order."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="[1,2,3,0,0,0]\n3\n[2,5,6]\n3", expected_output="[1,2,2,3,5,6]"),
+            TestCase(input="[1]\n1\n[]\n0", expected_output="[1]"),
+            TestCase(input="[0]\n0\n[1]\n1", expected_output="[1]"),
+        ],
+        constraints="nums1.length == m + n, nums2.length == n, 0 <= m, n <= 200, 1 <= m + n <= 200, -10^9 <= nums1[i], nums2[j] <= 10^9",
+        time_limit_seconds=1,
+        memory_limit_mb=256
+    ),
+    6: Problem(
+        id=6,
+        title="Contains Duplicate",
+        description="""Given an integer array nums, return true if any value appears at least twice in the array, 
+and return false if every element is distinct.""",
+        difficulty="Easy",
+        points=15,
+        examples=[
+            ProblemExample(
+                input="nums = [1,2,3,1]",
+                output="true",
+                explanation="The element 1 appears twice."
+            ),
+            ProblemExample(
+                input="nums = [1,2,3,4]",
+                output="false",
+                explanation="All elements are distinct."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="[1,2,3,1]", expected_output="true"),
+            TestCase(input="[1,2,3,4]", expected_output="false"),
+            TestCase(input="[1,1,1,3,3,4,3,2,4,2]", expected_output="true"),
+        ],
+        constraints="1 <= nums.length <= 10^5, -10^9 <= nums[i] <= 10^9",
+        time_limit_seconds=2,
+        memory_limit_mb=256
+    ),
+    7: Problem(
+        id=7,
+        title="Best Time to Buy and Sell Stock",
+        description="""You are given an array prices where prices[i] is the price of a given stock on the ith day.
+
+You want to maximize your profit by choosing a single day to buy one stock and a different day in the future to sell that stock.
+
+Return the maximum profit you can achieve from this transaction. If you cannot achieve any profit, return 0.
+
+Constraint: You must sell before you can buy again.""",
+        difficulty="Medium",
+        points=20,
+        examples=[
+            ProblemExample(
+                input="prices = [7,1,5,3,6,4]",
+                output="5",
+                explanation="Buy on day 2 (price=1) and sell on day 5 (price=6), profit = 6-1 = 5."
+            ),
+            ProblemExample(
+                input="prices = [7,6,4,3,1]",
+                output="0",
+                explanation="No transactions are done, max profit = 0."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="[7,1,5,3,6,4]", expected_output="5"),
+            TestCase(input="[7,6,4,3,1]", expected_output="0"),
+            TestCase(input="[2,4,1]", expected_output="2"),
+        ],
+        constraints="1 <= prices.length <= 10^5, 0 <= prices[i] <= 10^4",
+        time_limit_seconds=2,
+        memory_limit_mb=256
+    ),
+    8: Problem(
+        id=8,
+        title="Maximum Subarray",
+        description="""Given an integer array nums, find the contiguous subarray (containing at least one number) which has the largest sum and return its sum.
+
+A subarray is a contiguous part of an array.
+
+Example: [-2,1,-3,4,-1,2,1,-5,4] has the largest sum subarray: [4,-1,2,1] with sum 6.""",
+        difficulty="Medium",
+        points=20,
+        examples=[
+            ProblemExample(
+                input="nums = [-2,1,-3,4,-1,2,1,-5,4]",
+                output="6",
+                explanation="Subarray [4,-1,2,1] has sum 6 (largest)."
+            ),
+            ProblemExample(
+                input="nums = [5,4,-1,7,8]",
+                output="23",
+                explanation="The entire array is the largest subarray."
+            ),
+        ],
+        test_cases=[
+            TestCase(input="[-2,1,-3,4,-1,2,1,-5,4]", expected_output="6"),
+            TestCase(input="[5,4,-1,7,8]", expected_output="23"),
+            TestCase(input="[-1]", expected_output="-1"),
+        ],
+        constraints="1 <= nums.length <= 10^5, -10^4 <= nums[i] <= 10^4",
+        time_limit_seconds=2,
+        memory_limit_mb=256
+    ),
 }
 
-# =====================================================================
-# PROBLEMS DATABASE (8 Complete Problems)
-# =====================================================================
+# ============= JUDGE0 INTERACTION =============
 
-PROBLEMS: Dict[int, Dict] = {
-    1: {
-        "id": 1,
-        "title": "Two Sum",
-        "description": (
-            "Given an array of integers nums and an integer target, return indices "
-            "of the two numbers such that they add up to target.\n\n"
-            "You may assume that each input would have exactly one solution, "
-            "and you may not use the same element twice.\n\n"
-            "**Input Format:**\n"
-            "- First line: space-separated integers (the array)\n"
-            "- Second line: the target integer\n\n"
-            "**Output Format:**\n"
-            "- Space-separated indices of the two numbers"
-        ),
-        "difficulty": "Easy",
-        "points": 10,
-        "constraints": "2 ≤ nums.length ≤ 10⁴, -10⁹ ≤ nums[i] ≤ 10⁹",
-        "sample_input": "2 7 11 15\n9",
-        "sample_output": "0 1",
-        "sample_test_cases": [
-            {"input": "2 7 11 15\n9", "expected": "0 1"},
-            {"input": "3 2 4\n6", "expected": "1 2"},
-        ],
-        "hidden_test_cases": [
-            {"input": "3 3\n6", "expected": "0 1"},
-            {"input": "1 2 3 4 5\n9", "expected": "3 4"},
-            {"input": "5 5\n10", "expected": "0 1"},
-        ],
-    },
-    2: {
-        "id": 2,
-        "title": "Reverse String",
-        "description": (
-            "Write a function that reverses a string.\n\n"
-            "**Input Format:**\n"
-            "- A single line containing the string to reverse\n\n"
-            "**Output Format:**\n"
-            "- The reversed string"
-        ),
-        "difficulty": "Easy",
-        "points": 8,
-        "constraints": "1 ≤ s.length ≤ 10⁵",
-        "sample_input": "hello",
-        "sample_output": "olleh",
-        "sample_test_cases": [
-            {"input": "hello", "expected": "olleh"},
-            {"input": "Hannah", "expected": "hannaH"},
-        ],
-        "hidden_test_cases": [
-            {"input": "world", "expected": "dlrow"},
-            {"input": "a", "expected": "a"},
-            {"input": "racecar", "expected": "racecar"},
-        ],
-    },
-    3: {
-        "id": 3,
-        "title": "Palindrome Number",
-        "description": (
-            "Given an integer x, return True if x is a palindrome integer, "
-            "otherwise return False.\n\n"
-            "An integer is a palindrome when it reads the same forwards and backwards.\n\n"
-            "**Input Format:**\n"
-            "- A single integer\n\n"
-            "**Output Format:**\n"
-            "- True or False"
-        ),
-        "difficulty": "Easy",
-        "points": 10,
-        "constraints": "-2³¹ ≤ x ≤ 2³¹ - 1",
-        "sample_input": "121",
-        "sample_output": "True",
-        "sample_test_cases": [
-            {"input": "121", "expected": "True"},
-            {"input": "-121", "expected": "False"},
-        ],
-        "hidden_test_cases": [
-            {"input": "10", "expected": "False"},
-            {"input": "0", "expected": "True"},
-            {"input": "12321", "expected": "True"},
-        ],
-    },
-    4: {
-        "id": 4,
-        "title": "Valid Parentheses",
-        "description": (
-            "Given a string s containing just the characters '(', ')', '{', '}', "
-            "'[' and ']', determine if the input string is valid.\n\n"
-            "An input string is valid if:\n"
-            "1. Open brackets are closed by the same type of brackets.\n"
-            "2. Open brackets are closed in the correct order.\n\n"
-            "**Input Format:**\n"
-            "- A single string of bracket characters\n\n"
-            "**Output Format:**\n"
-            "- True or False"
-        ),
-        "difficulty": "Medium",
-        "points": 15,
-        "constraints": "1 ≤ s.length ≤ 10⁴",
-        "sample_input": "()[]{}\n",
-        "sample_output": "True",
-        "sample_test_cases": [
-            {"input": "()[]{}", "expected": "True"},
-            {"input": "(]", "expected": "False"},
-        ],
-        "hidden_test_cases": [
-            {"input": "([)]", "expected": "False"},
-            {"input": "{[]}", "expected": "True"},
-            {"input": "(", "expected": "False"},
-        ],
-    },
-    5: {
-        "id": 5,
-        "title": "Fibonacci Number",
-        "description": (
-            "The Fibonacci numbers form a sequence where each number is "
-            "the sum of the two preceding ones, starting from 0 and 1.\n\n"
-            "Given n, return F(n).\n\n"
-            "F(0) = 0, F(1) = 1, F(n) = F(n-1) + F(n-2) for n > 1\n\n"
-            "**Input Format:**\n"
-            "- A single integer n\n\n"
-            "**Output Format:**\n"
-            "- The nth Fibonacci number"
-        ),
-        "difficulty": "Easy",
-        "points": 12,
-        "constraints": "0 ≤ n ≤ 30",
-        "sample_input": "2",
-        "sample_output": "1",
-        "sample_test_cases": [
-            {"input": "2", "expected": "1"},
-            {"input": "3", "expected": "2"},
-        ],
-        "hidden_test_cases": [
-            {"input": "4", "expected": "3"},
-            {"input": "0", "expected": "0"},
-            {"input": "10", "expected": "55"},
-        ],
-    },
-    6: {
-        "id": 6,
-        "title": "FizzBuzz",
-        "description": (
-            "Given an integer n, for each number from 1 to n:\n"
-            "- If the number is divisible by 3, print 'Fizz'\n"
-            "- If the number is divisible by 5, print 'Buzz'\n"
-            "- If divisible by both 3 and 5, print 'FizzBuzz'\n"
-            "- Otherwise, print the number\n\n"
-            "Print each result on a new line.\n\n"
-            "**Input Format:**\n"
-            "- A single integer n\n\n"
-            "**Output Format:**\n"
-            "- One output per line"
-        ),
-        "difficulty": "Easy",
-        "points": 8,
-        "constraints": "1 ≤ n ≤ 100",
-        "sample_input": "5",
-        "sample_output": "1\nFizz\nBuzz\nFizz\n5",
-        "sample_test_cases": [
-            {"input": "5", "expected": "1\nFizz\nBuzz\nFizz\n5"},
-            {"input": "3", "expected": "1\nFizz\nBuzz"},
-        ],
-        "hidden_test_cases": [
-            {"input": "15", "expected": "1\nFizz\nBuzz\nFizz\n5\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz"},
-            {"input": "1", "expected": "1"},
-            {"input": "6", "expected": "1\nFizz\nBuzz\nFizz\n5\nFizz"},
-        ],
-    },
-    7: {
-        "id": 7,
-        "title": "Sum of Digits",
-        "description": (
-            "Given a positive integer, return the sum of its digits.\n\n"
-            "**Input Format:**\n"
-            "- A single positive integer\n\n"
-            "**Output Format:**\n"
-            "- The sum of its digits"
-        ),
-        "difficulty": "Easy",
-        "points": 6,
-        "constraints": "1 ≤ n ≤ 10⁹",
-        "sample_input": "12345",
-        "sample_output": "15",
-        "sample_test_cases": [
-            {"input": "12345", "expected": "15"},
-            {"input": "999", "expected": "27"},
-        ],
-        "hidden_test_cases": [
-            {"input": "1", "expected": "1"},
-            {"input": "100", "expected": "1"},
-            {"input": "9999", "expected": "36"},
-        ],
-    },
-    8: {
-        "id": 8,
-        "title": "Maximum of Array",
-        "description": (
-            "Given an array of integers, return the maximum value.\n\n"
-            "**Input Format:**\n"
-            "- A space-separated line of integers\n\n"
-            "**Output Format:**\n"
-            "- The maximum integer"
-        ),
-        "difficulty": "Easy",
-        "points": 6,
-        "constraints": "1 ≤ array.length ≤ 10⁵, -10⁹ ≤ nums[i] ≤ 10⁹",
-        "sample_input": "1 5 3 9 2",
-        "sample_output": "9",
-        "sample_test_cases": [
-            {"input": "1 5 3 9 2", "expected": "9"},
-            {"input": "-5 -2 -10", "expected": "-2"},
-        ],
-        "hidden_test_cases": [
-            {"input": "42", "expected": "42"},
-            {"input": "100 50 75", "expected": "100"},
-            {"input": "-1 -2 -3", "expected": "-1"},
-        ],
-    },
-}
-
-# =====================================================================
-# UTILITY FUNCTIONS
-# =====================================================================
-
-
-def normalize_output(output: str) -> str:
-    """Normalize output by stripping whitespace and standardizing line endings"""
-    return "\n".join(line.rstrip() for line in output.strip().split("\n")).strip()
-
-
-async def run_judge0(
-    language_id: int, source_code: str, stdin: str = ""
-) -> Dict[str, Any]:
-    """Execute code on Judge0 and return result"""
+async def get_judge0_status() -> bool:
+    """Check if Judge0 is running and healthy"""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            payload = {
-                "language_id": language_id,
-                "source_code": source_code,
-                "stdin": stdin,
-            }
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{JUDGE0_URL}/")
+            return response.status_code == 200
+    except Exception as e:
+        logger.warning(f"Judge0 health check failed (will retry): {e}")
+        return True  # Return True to allow submission attempts anyway
+
+
+async def submit_to_judge0(code: str, language_id: int, stdin: str, expected_output: str) -> Dict[str, Any]:
+    """
+    Submit code to Judge0 for evaluation asynchronously.
+    Returns token for polling results.
+    """
+    headers = {"Content-Type": "application/json"}
+    if JUDGE0_API_KEY:
+        headers["X-Auth-Token"] = JUDGE0_API_KEY
+
+    payload = {
+        "source_code": code,
+        "language_id": language_id,
+        "stdin": stdin,
+        "expected_output": expected_output,
+    }
+
+    try:
+        logger.info(f"🔍 Submitting to Judge0 (async): language_id={language_id}, stdin_len={len(stdin)}, code_len={len(code)}")
+        
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 f"{JUDGE0_URL}/submissions",
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
             )
+            logger.info(f"📨 Judge0 Response Status: {response.status_code}")
             
-            if response.status_code != 201:
-                logger.error(f"Judge0 submission failed: {response.text}")
-                return {"error": f"Judge0 error: {response.status_code}"}
+            if response.status_code not in [200, 201]:
+                logger.error(f"📨 Judge0 Error Response: {response.status_code} - {response.text}")
+                # Try to parse error details
+                try:
+                    error_detail = response.json()
+                    logger.error(f"📨 Judge0 Error Details: {error_detail}")
+                except:
+                    pass
+                # For 500 errors from Judge0 (often Redis-related), retry or fail gracefully
+                if response.status_code == 500:
+                    raise HTTPException(status_code=503, detail="Judge0 service temporarily unavailable (500 error)")
+                raise HTTPException(status_code=response.status_code, detail="Judge0 submission failed")
             
-            submission = response.json()
-            token = submission.get("token")
+            data = response.json()
+            token = data.get("token")
+            logger.info(f"✅ Got token from Judge0: {token}")
+            return data
             
-            # Poll for result
-            for attempt in range(30):
-                await asyncio.sleep(0.5)
-                result_response = await client.get(
+    except httpx.TimeoutException:
+        logger.error(f"❌ Judge0 request timeout after 15 seconds")
+        raise HTTPException(status_code=504, detail="Judge0 request timed out")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error submitting to Judge0: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit to Judge0: {str(e)}")
+
+
+async def poll_judge0_result(token: str, max_retries: int = 30) -> Dict[str, Any]:
+    """Poll Judge0 for submission result with exponential backoff"""
+    headers = {}
+    if JUDGE0_API_KEY:
+        headers["X-Auth-Token"] = JUDGE0_API_KEY
+
+    for attempt in range(max_retries):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
                     f"{JUDGE0_URL}/submissions/{token}",
-                    params={"base64_encoded": "false"},
+                    headers=headers,
+                    params={"base64": "false"}
                 )
                 
-                if result_response.status_code == 200:
-                    result = result_response.json()
-                    if result.get("status", {}).get("id") not in [1, 2]:  # Not queued or processing
-                        return result
-            
-            return {"error": "Judge0 timeout"}
-    
-    except Exception as e:
-        logger.error(f"Judge0 execution error: {e}")
-        return {"error": str(e)}
+                if response.status_code not in [200, 202]:
+                    logger.warning(f"Judge0 poll returned status {response.status_code}")
+                    if response.status_code >= 500:
+                        raise HTTPException(status_code=500, detail="Judge0 polling service error")
+                    continue
+                
+                data = response.json()
+                
+                # Status codes: 1=In Queue, 2=Processing, 3=Accepted, 4=Wrong Answer, etc.
+                status_id = data.get("status", {}).get("id", 0) if data.get("status") else 0
+                
+                # Check if execution is complete (any status except 1=queue, 2=processing)
+                if status_id not in [1, 2]:
+                    logger.info(f"✅ Judge0 result ready: token={token}, status={status_id}")
+                    return data
+
+                # Not done yet, wait before retrying
+                sleep_time = min(1.0 * (2 ** attempt), 10.0)  # Exponential: 1s, 2s, 4s, 8s, cap 10s
+                await asyncio.sleep(sleep_time)
+
+        except httpx.TimeoutException:
+            logger.warning(f"Judge0 poll timeout on attempt {attempt+1}/{max_retries}")
+            continue
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Error polling Judge0 (attempt {attempt+1}): {e}")
+            if attempt == max_retries - 1:
+                raise HTTPException(status_code=500, detail=f"Judge0 polling failed: {str(e)}")
+
+    raise HTTPException(status_code=504, detail="Judge0 result polling timed out after 30 attempts")
 
 
-# =====================================================================
-# ENDPOINTS
-# =====================================================================
-
-
-@app.get("/health")
-async def health():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "judge",
-        "judge0_url": JUDGE0_URL,
-        "leaderboard_url": LEADERBOARD_URL,
-        "problems_available": len(PROBLEMS),
+def map_judge0_verdict(judge0_status_id: int, passed_count: int, total_count: int) -> VerdictEnum:
+    """Map Judge0 status code to submission verdict"""
+    # Status codes: 1=In Queue, 2=Processing, 3=Accepted, 4=Wrong Answer, 5=Time Limit, etc.
+    judge0_verdicts = {
+        1: VerdictEnum.PENDING,
+        2: VerdictEnum.PENDING,
+        3: VerdictEnum.ACCEPTED if passed_count == total_count else VerdictEnum.WRONG_ANSWER,
+        4: VerdictEnum.WRONG_ANSWER,
+        5: VerdictEnum.TIME_LIMIT,
+        6: VerdictEnum.COMPILATION_ERROR,
+        7: VerdictEnum.RUNTIME_ERROR,
+        8: VerdictEnum.RUNTIME_ERROR,
+        9: VerdictEnum.TIME_LIMIT,
+        10: VerdictEnum.RUNTIME_ERROR,
+        11: VerdictEnum.RUNTIME_ERROR,
+        12: VerdictEnum.COMPILATION_ERROR,
+        13: VerdictEnum.RUNTIME_ERROR,
+        14: VerdictEnum.RUNTIME_ERROR,
     }
+    return judge0_verdicts.get(judge0_status_id, VerdictEnum.RUNTIME_ERROR)
 
 
-@app.get("/api/v1/problems")
-async def get_problems(limit: int = 100, offset: int = 0):
-    """Get all problems with pagination"""
-    try:
-        problems_list = list(PROBLEMS.values())
-        paginated = problems_list[offset : offset + limit]
-        
-        return {
-            "status": "success",
-            "data": paginated,
-            "total": len(problems_list),
-            "offset": offset,
-            "limit": limit,
-        }
-    except Exception as e:
-        logger.error(f"❌ Error in get_problems: {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-            "data": [],
-            "total": 0,
-        }
-
-
-@app.get("/api/v1/problems/{problem_id}")
-async def get_problem(problem_id: int):
-    """Get a specific problem by ID"""
-    try:
-        problem = PROBLEMS.get(problem_id)
-        if not problem:
-            raise HTTPException(status_code=404, detail="Problem not found")
-        
-        return {
-            "status": "success",
-            "data": problem,
-        }
-    except Exception as e:
-        logger.error(f"❌ Error fetching problem {problem_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/v1/submissions", response_model=SubmissionResponse)
-async def create_submission(request: SubmissionRequest, background_tasks: BackgroundTasks):
-    """
-    Full submission - evaluates against all test cases
-    Returns immediately with submission_id; evaluation happens in background
-    """
-    sub_id = str(uuid.uuid4())
-    
-    try:
-        problem = PROBLEMS.get(request.problem_id)
-        if not problem:
-            return SubmissionResponse(
-                submission_id=sub_id,
-                status="error",
-                message="Problem not found",
-            )
-        
-        # Get language ID from mapping
-        lang = request.language.lower()
-        language_id = LANGUAGE_MAP.get(lang)
-        if not language_id:
-            return SubmissionResponse(
-                submission_id=sub_id,
-                status="error",
-                message=f"Unsupported language: {request.language}",
-            )
-        
-        # Store submission
-        active_submissions[sub_id] = {
-            "id": sub_id,
-            "problem_id": request.problem_id,
-            "language": request.language,
-            "user_id": request.user_id,
-            "status": "evaluating",
-            "created_at": datetime.utcnow().isoformat(),
-        }
-        
-        # Start evaluation in background
-        background_tasks.add_task(
-            evaluate_submission,
-            sub_id,
-            request.problem_id,
-            language_id,
-            request.source_code,
-            request.user_id,
-        )
-        
-        return SubmissionResponse(
-            submission_id=sub_id,
-            status="pending",
-            message="Submission received. Evaluating...",
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ Submission error: {e}")
-        return SubmissionResponse(
-            submission_id=sub_id,
-            status="error",
-            message=str(e),
-        )
+async def normalize_output(output: str) -> str:
+    """Normalize output for comparison (CRLF-aware, per-line trailing whitespace stripped)"""
+    if not output:
+        return ""
+    text = output.replace('\r\n', '\n').replace('\r', '\n')
+    lines = [line.rstrip() for line in text.split('\n')]
+    return '\n'.join(lines).strip()
 
 
 async def evaluate_submission(
-    sub_id: str,
-    problem_id: int,
-    language_id: int,
-    source_code: str,
-    user_id: Optional[str],
-):
-    """Background task to evaluate submission against all test cases"""
+    code: str,
+    language: str,
+    test_cases: List[TestCase],
+    problem_id: int
+) -> tuple[List[TestCaseResult], VerdictEnum, int]:
+    """
+    Evaluate submission against all test cases using Judge0.
+    Returns (test_results, overall_verdict, score)
+    """
+    test_results = []
+    passed_count = 0
+
+    if language.lower() not in LANGUAGE_IDS:
+        raise HTTPException(status_code=400, detail=f"Unsupported language: {language}")
+
+    language_id = LANGUAGE_IDS[language.lower()]
+
+    # Check if Judge0 is healthy (don't block if it fails)
     try:
-        problem = PROBLEMS[problem_id]
-        all_test_cases = (
-            problem.get("sample_test_cases", [])
-            + problem.get("hidden_test_cases", [])
-        )
-        
-        test_results = []
-        passed_count = 0
-        
-        for idx, test_case in enumerate(all_test_cases, 1):
-            input_data = test_case.get("input", "")
-            expected = test_case.get("expected", "")
+        is_healthy = await get_judge0_status()
+        if not is_healthy:
+            logger.warning("Judge0 health check failed, but will attempt submission anyway")
+    except Exception as e:
+        logger.warning(f"Judge0 health check raised exception: {e}, continuing with submission")
+
+    for idx, test_case in enumerate(test_cases, 1):
+        try:
+            # Submit to Judge0 (async, returns token)
+            judge0_response = await submit_to_judge0(
+                code=code,
+                language_id=language_id,
+                stdin=test_case.input,
+                expected_output=test_case.expected_output
+            )
+
+            # Get token for polling
+            token = judge0_response.get("token")
+            if not token:
+                logger.error(f"No token in Judge0 response: {judge0_response}")
+                raise ValueError("Judge0 returned no token")
+
+            logger.info(f"Test case {idx}: Got token {token}, now polling for result...")
+
+            # Poll for result
+            result = await poll_judge0_result(token)
+
+            # Extract execution result
+            actual_output = result.get("stdout", "").strip() if result.get("stdout") else ""
+            stderr = result.get("stderr", "").strip() if result.get("stderr") else ""
+            compile_output = result.get("compile_output", "").strip() if result.get("compile_output") else ""
+            status_id = result.get("status", {}).get("id", 0) if result.get("status") else 0
             
-            # Run on Judge0
-            judge0_result = await run_judge0(language_id, source_code, input_data)
+            logger.info(f"Test case {idx}: status={status_id}, stdout_len={len(actual_output)}, stderr={stderr[:50] if stderr else 'none'}")
             
-            if "error" in judge0_result:
-                actual_output = ""
-                runtime_error = judge0_result.get("error")
+            # Check for compilation errors
+            if compile_output and status_id in [11, 12, 13, 14, 15]:  # Compilation error statuses
+                passed = False
+                error_msg = compile_output
+            elif status_id == 5 or status_id == 6:  # Runtime error
+                passed = False
+                error_msg = stderr if stderr else "Runtime error"
             else:
-                status_id = judge0_result.get("status", {}).get("id")
-                actual_output = judge0_result.get("stdout", "") or ""
-                
-                # Status codes: 3=Accepted, 4=Wrong Answer, 5=TLE, 6=CE, 7+=Runtime Error
-                if status_id == 6:
-                    runtime_error = "Compilation Error"
-                elif status_id == 5:
-                    runtime_error = "Time Limit Exceeded"
-                elif status_id >= 7:
-                    runtime_error = judge0_result.get("stderr", "Runtime Error") or "Runtime Error"
-                else:
-                    runtime_error = None
-            
-            # Normalize and compare
-            actual_normalized = normalize_output(actual_output)
-            expected_normalized = normalize_output(expected)
-            passed = actual_normalized == expected_normalized and not runtime_error
+                # Normalize for comparison using OutputNormalizer
+                match, _ = OutputNormalizer.compare(
+                    actual_output,
+                    test_case.expected_output,
+                    normalize_mode="lines"
+                )
+                # Status 3 = Accepted
+                passed = match and (status_id == 3)
+                error_msg = stderr if stderr else None
             
             if passed:
                 passed_count += 1
-            
-            test_results.append(
-                TestCaseResult(
-                    test_case_number=idx,
-                    input=input_data,
-                    expected_output=expected,
-                    actual_output=actual_output,
-                    passed=passed,
-                    runtime_error=runtime_error,
-                )
-            )
-        
-        # Determine verdict
-        total_tests = len(all_test_cases)
-        if passed_count == total_tests:
-            verdict = "Accepted"
-            score = problem.get("points", 0)
-        elif passed_count > 0:
-            verdict = "Partial"
-            score = int(problem.get("points", 0) * (passed_count / total_tests))
-        else:
-            verdict = "Wrong Answer"
-            score = 0
-        
-        # Update submission record
-        active_submissions[sub_id] = {
-            "id": sub_id,
-            "problem_id": problem_id,
-            "language": "",
-            "user_id": user_id,
-            "status": "completed",
-            "verdict": verdict,
-            "passed_tests": passed_count,
-            "total_tests": total_tests,
-            "test_cases": [tc.dict() for tc in test_results],
-            "score": score,
-            "completed_at": datetime.utcnow().isoformat(),
-        }
-        
-        logger.info(f"✅ Submission {sub_id} evaluated: {verdict} ({passed_count}/{total_tests})")
-        
-        # Update leaderboard if Accepted
-        if verdict == "Accepted" and user_id:
-            await update_leaderboard(user_id, problem_id, score, sub_id)
-    
-    except Exception as e:
-        logger.error(f"❌ Evaluation error for {sub_id}: {e}")
-        active_submissions[sub_id]["status"] = "error"
-        active_submissions[sub_id]["message"] = str(e)
 
+            test_results.append(TestCaseResult(
+                test_case_number=idx,
+                input=test_case.input[:100],
+                expected_output=(await normalize_output(test_case.expected_output))[:100],
+                actual_output=(await normalize_output(actual_output))[:100],
+                passed=passed,
+                runtime_ms=float(result.get("time")) if result.get("time") else None,
+                memory_mb=float(result.get("memory")) if result.get("memory") else None,
+                error=error_msg
+            ))
+
+        except HTTPException as e:
+            # Re-raise HTTP exceptions from Judge0
+            logger.error(f"HTTP Error on test case {idx}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error evaluating test case {idx}: {type(e).__name__}: {e}")
+            test_results.append(TestCaseResult(
+                test_case_number=idx,
+                input=test_case.input[:100],
+                expected_output=test_case.expected_output[:100],
+                actual_output="",
+                passed=False,
+                error=str(e)
+            ))
+
+    # Determine overall verdict and score
+    if passed_count == len(test_cases):
+        verdict = VerdictEnum.ACCEPTED
+        score = 100
+    elif passed_count > 0:
+        verdict = VerdictEnum.PARTIAL
+        score = int((passed_count / len(test_cases)) * 100)
+    else:
+        verdict = VerdictEnum.WRONG_ANSWER
+        score = 0
+
+    return test_results, verdict, score
+
+
+# ============= BACKGROUND TASKS =============
 
 async def update_leaderboard(
-    user_id: str, problem_id: int, score: int, submission_id: str
+    user_id: str,
+    username: str,
+    house: str,
+    problem_id: int,
+    score: int,
+    language: str
 ):
-    """Update leaderboard after accepted submission"""
+    """Send leaderboard update to Leaderboard Service"""
     try:
-        # Get user data from PostgreSQL if available
-        if HAS_POSTGRES:
-            user = await PostgreSQLService.get_user(user_id)
-            if user:
-                username = user.get("username", "Unknown")
-                house = user.get("house", "Unknown")
-            else:
-                username = "Unknown"
-                house = "Unknown"
-        else:
-            username = "Unknown"
-            house = "Unknown"
-        
-        # Call Leaderboard Service
         payload = {
             "user_id": user_id,
             "username": username,
             "house": house,
             "problem_id": problem_id,
-            "score": score,
-            "submission_id": submission_id,
+            "points": score,
+            "language": language,
         }
-        
+
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{LEADERBOARD_URL}/api/v1/update_score",
-                json=payload,
+                json=payload
             )
+            
             if response.status_code == 200:
-                logger.info(f"🎯 Leaderboard updated for user {user_id}")
+                logger.info(f"Leaderboard updated for {username}: +{score} points")
             else:
-                logger.warning(f"⚠️ Leaderboard update failed: {response.status_code}")
-    
+                logger.error(f"Leaderboard update failed: {response.text}")
+
     except Exception as e:
-        logger.error(f"❌ Leaderboard update error: {e}")
+        logger.error(f"Error updating leaderboard: {e}")
 
 
-@app.get("/api/v1/submissions/{submission_id}")
-async def get_submission(submission_id: str):
-    """Poll for submission result"""
+# ============= API ENDPOINTS =============
+
+@app.get("/health")
+async def health_check():
+    """Service health check"""
+    judge0_healthy = await get_judge0_status()
+    return {
+        "status": "healthy" if judge0_healthy else "degraded",
+        "judge0": "connected" if judge0_healthy else "offline",
+        "service": "judge",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/v1/problems", response_model=Dict[str, Any])
+async def get_problems(limit: int = 100, offset: int = 0):
+    """Get all problems with pagination"""
     try:
-        if submission_id not in active_submissions:
-            return {
-                "status": "not_found",
-                "message": "Submission not found",
-            }
+        all_problems = list(PROBLEMS.values())
+        paginated = all_problems[offset:offset + limit]
+
+        return {
+            "status": "success",
+            "total": len(all_problems),
+            "returned": len(paginated),
+            "problems": paginated
+        }
+    except Exception as e:
+        logger.error(f"Error fetching problems: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/problems/{problem_id}", response_model=Dict[str, Any])
+async def get_problem(problem_id: int):
+    """Get specific problem details"""
+    try:
+        if problem_id not in PROBLEMS:
+            raise HTTPException(status_code=404, detail=f"Problem {problem_id} not found")
+
+        problem = PROBLEMS[problem_id]
+        return {
+            "status": "success",
+            "problem": problem
+        }
+    except Exception as e:
+        logger.error(f"Error fetching problem {problem_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/submissions", response_model=Dict[str, Any])
+async def submit_code(request: SubmissionRequest, background_tasks: BackgroundTasks):
+    """Submit code for evaluation"""
+    try:
+        # Validate problem exists
+        if request.problem_id not in PROBLEMS:
+            raise HTTPException(status_code=404, detail=f"Problem {request.problem_id} not found")
+
+        problem = PROBLEMS[request.problem_id]
+        logger.info(f"📝 Processing submission for problem {request.problem_id} in {request.language}")
+
+        # Evaluate submission
+        test_results, verdict, score = await evaluate_submission(
+            code=request.code,
+            language=request.language,
+            test_cases=problem.test_cases,
+            problem_id=request.problem_id
+        )
+
+        # Create submission ID and persist to PostgreSQL
+        submission_id = str(uuid.uuid4())
+        db_id = await DatabaseService.save_submission(
+            user_id=request.user_id,
+            problem_id=request.problem_id,
+            language=request.language,
+            source_code=request.code,
+            verdict=verdict.value,
+            score=score if verdict == VerdictEnum.ACCEPTED else 0,
+            passed_tests=sum(1 for r in test_results if r.passed),
+            total_tests=len(test_results),
+            execution_time=0.0,
+        )
+
+        # Build submission result
+        submission_result = SubmissionResult(
+            submission_id=str(db_id),
+            verdict=verdict,
+            total_test_cases=len(test_results),
+            passed_test_cases=sum(1 for r in test_results if r.passed),
+            language=request.language,
+            test_cases=test_results,
+            score=score if verdict == VerdictEnum.ACCEPTED else 0,
+            submitted_code=request.code,
+            submission_time=datetime.now().isoformat()
+        )
         
-        sub = active_submissions[submission_id]
-        
-        if sub["status"] == "evaluating":
+        logger.info(f"✅ Submission {db_id} completed with verdict: {verdict}")
+
+        # If Accepted, update leaderboard in background
+        if verdict == VerdictEnum.ACCEPTED:
+            background_tasks.add_task(
+                update_leaderboard,
+                user_id=request.user_id,
+                username=request.username,
+                house=request.house,
+                problem_id=request.problem_id,
+                score=score,
+                language=request.language
+            )
+            logger.info(f"🏆 Leaderboard update queued for {request.username}: +{score} points")
+
+        return {
+            "status": "success",
+            "submission": submission_result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error evaluating submission: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Submission evaluation failed: {str(e)}")
+
+
+@app.post("/api/v1/submissions/run", response_model=Dict[str, Any])
+async def run_submission(request: RunSubmissionRequest):
+    """Run code on custom test cases"""
+    try:
+        if request.problem_id not in PROBLEMS:
+            raise HTTPException(status_code=404, detail=f"Problem {request.problem_id} not found")
+
+        problem = PROBLEMS[request.problem_id]
+
+        # Use provided test cases or problem's test cases
+        test_cases = request.test_cases or problem.test_cases
+
+        # Convert dict test cases to TestCase objects if needed
+        if test_cases and isinstance(test_cases[0], dict):
+            test_cases = [
+                TestCase(input=tc["input"], expected_output=tc["expected_output"])
+                for tc in test_cases
+            ]
+
+        test_results, verdict, score = await evaluate_submission(
+            code=request.code,
+            language=request.language,
+            test_cases=test_cases,
+            problem_id=request.problem_id
+        )
+
+        return {
+            "status": "success",
+            "verdict": verdict,
+            "passed": sum(1 for r in test_results if r.passed),
+            "total": len(test_results),
+            "test_cases": test_results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error running submission: {e}")
+        raise HTTPException(status_code=500, detail=f"Test execution failed: {str(e)}")
+
+
+@app.get("/api/v1/submissions/{submission_id}", response_model=Dict[str, Any])
+async def get_submission(submission_id: str):
+    """Get submission details"""
+    try:
+        try:
+            db_submission_id = int(submission_id)
+        except (ValueError, TypeError):
             return {
                 "status": "pending",
-                "message": "Still evaluating...",
-                "submission_id": submission_id,
+                "submission": {
+                    "submission_id": submission_id,
+                    "verdict": "Pending",
+                    "status": "pending"
+                }
             }
-        
-        if sub["status"] == "error":
+
+        submission_data = await DatabaseService.get_submission(db_submission_id)
+
+        if submission_data is None:
             return {
-                "status": "error",
-                "message": sub.get("message", "Unknown error"),
-                "submission_id": submission_id,
+                "status": "pending",
+                "submission": {
+                    "submission_id": submission_id,
+                    "verdict": "Pending",
+                    "status": "pending"
+                }
             }
-        
-        return {
-            "status": "completed",
-            "submission_id": submission_id,
-            "verdict": sub.get("verdict"),
-            "passed_tests": sub.get("passed_tests"),
-            "total_tests": sub.get("total_tests"),
-            "score": sub.get("score"),
-            "test_cases": sub.get("test_cases"),
-        }
-    
-    except Exception as e:
-        logger.error(f"❌ Error fetching submission {submission_id}: {e}")
-        return {
-            "status": "error",
-            "message": str(e),
-        }
 
+        logger.info(f"🔍 Retrieved submission {submission_id}")
 
-@app.post("/api/v1/submissions/run")
-async def run_sample_test(request: SubmissionRequest):
-    """Run only sample test cases for quick feedback"""
-    try:
-        problem = PROBLEMS.get(request.problem_id)
-        if not problem:
-            raise HTTPException(status_code=404, detail="Problem not found")
-        
-        lang = request.language.lower()
-        language_id = LANGUAGE_MAP.get(lang)
-        if not language_id:
-            raise HTTPException(status_code=400, detail=f"Unsupported language: {request.language}")
-        
-        sample_tests = problem.get("sample_test_cases", [])
-        test_results = []
-        passed_count = 0
-        
-        for idx, test_case in enumerate(sample_tests, 1):
-            input_data = test_case.get("input", "")
-            expected = test_case.get("expected", "")
-            
-            judge0_result = await run_judge0(language_id, request.source_code, input_data)
-            
-            if "error" in judge0_result:
-                actual_output = ""
-                runtime_error = judge0_result.get("error")
-            else:
-                actual_output = judge0_result.get("stdout", "") or ""
-                status_id = judge0_result.get("status", {}).get("id")
-                runtime_error = None
-                
-                if status_id == 6:
-                    runtime_error = "Compilation Error"
-                elif status_id >= 7:
-                    runtime_error = "Runtime Error"
-            
-            actual_normalized = normalize_output(actual_output)
-            expected_normalized = normalize_output(expected)
-            passed = actual_normalized == expected_normalized and not runtime_error
-            
-            if passed:
-                passed_count += 1
-            
-            test_results.append({
-                "test_case": idx,
-                "input": input_data,
-                "expected": expected,
-                "actual": actual_output,
-                "passed": passed,
-                "error": runtime_error,
-            })
-        
         return {
-            "status": "completed",
-            "passed": passed_count,
-            "total": len(sample_tests),
-            "verdict": "Accepted" if passed_count == len(sample_tests) else "Wrong Answer",
-            "test_cases": test_results,
+            "status": "success",
+            "submission": SubmissionResult(
+                submission_id=str(submission_data["id"]),
+                verdict=submission_data["verdict"],
+                total_test_cases=submission_data["total_tests"],
+                passed_test_cases=submission_data["passed_tests"],
+                language=submission_data["language"],
+                test_cases=[],
+                score=submission_data["score"],
+                submitted_code="[code hidden]",
+                submission_time=submission_data["created_at"].isoformat() if submission_data.get("created_at") else datetime.now().isoformat()
+            )
         }
-    
     except Exception as e:
-        logger.error(f"❌ Error running sample test: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Error fetching submission: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve submission: {str(e)}")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8002,
+        log_level="info"
+    )
