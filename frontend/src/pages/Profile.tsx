@@ -1,362 +1,395 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
-import './Profile.css';
+import styles from './Profile.module.css';
+import SubmissionDetailModal from '@/components/SubmissionDetailModal';
 
 interface UserStats {
   username: string;
   house: string;
-  totalPoints: number;
-  problemsSolved: number;
-  houseRank: number;
-  totalSubmissions: number;
-  acceptanceRate: number;
+  total_points: number;
+  problems_solved: number;
+  submission_count: number;
+  acceptance_rate: number;
+  rank: number;
 }
 
 interface Submission {
-  id: string;
-  problemId: number;
-  problemTitle: string;
-  language: string;
+  submission_id: string;
+  problem_id: number;
+  problem_name: string;
   verdict: string;
   score: number;
-  submissionDate: string;
-  runtime?: string;
-  passedTests?: number;
-  totalTests?: number;
+  language: string;
+  submitted_at: string;
+  test_cases_passed: number;
+  test_cases_total: number;
 }
 
-interface LeaderboardEntry {
-  username: string;
-  totalScore: number;
-  problemsSolved: number;
-  houseRank: number;
+interface HouseInfo {
+  gryffindor: { color: string; bgColor: string; emoji: string };
+  slytherin: { color: string; bgColor: string; emoji: string };
+  hufflepuff: { color: string; bgColor: string; emoji: string };
+  ravenclaw: { color: string; bgColor: string; emoji: string };
 }
 
-const Profile: React.FC = () => {
-  const navigate = useNavigate();
+const HOUSE_INFO: HouseInfo = {
+  gryffindor: { color: '#DC143C', bgColor: '#8B0000', emoji: '🦁' },
+  slytherin: { color: '#00AA00', bgColor: '#004400', emoji: '🐍' },
+  hufflepuff: { color: '#FFD700', bgColor: '#4A4A00', emoji: '🦡' },
+  ravenclaw: { color: '#4169E1', bgColor: '#191970', emoji: '🦅' },
+};
+
+export default function Profile() {
+  const router = useRouter();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [leaderboardRank, setLeaderboardRank] = useState<LeaderboardEntry | null>(null);
+  const [filteredSubmissions, setFilteredSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'stats' | 'submissions'>('stats');
+  const [error, setError] = useState('');
+  const [selectedVerdictFilter, setSelectedVerdictFilter] = useState('All');
+  const [selectedLanguageFilter, setSelectedLanguageFilter] = useState('All');
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
-  const houseColors: Record<string, { bg: string; text: string; crest: string }> = {
-    Gryffindor: { bg: '#8B0000', text: '#FFD700', crest: '🦁' },
-    Slytherin: { bg: '#1a4d1a', text: '#C0C0C0', crest: '🐍' },
-    Hufflepuff: { bg: '#DAA520', text: '#000000', crest: '🦡' },
-    Ravenclaw: { bg: '#0047AB', text: '#FFD700', crest: '🦅' },
-  };
-
-  const verdictColors: Record<string, string> = {
-    Accepted: '#10B981',
-    'Wrong Answer': '#EF4444',
-    'Runtime Error': '#F97316',
-    'Time Limit Exceeded': '#F59E0B',
-    Partial: '#8B5CF6',
-    'Compilation Error': '#DC2626',
-  };
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        const userId = localStorage.getItem('user_id');
-        const username = localStorage.getItem('username');
-        const house = localStorage.getItem('house') || 'Unknown';
-        const token = localStorage.getItem('token');
+    if (!token || !user) {
+      router.push('/');
+      return;
+    }
 
-        if (!userId) {
-          navigate('/login');
-          return;
-        }
+    fetchUserProfile();
+    fetchSubmissions();
+  }, [token, user]);
 
-        // Fetch user stats from backend
-        const statsResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/users/${userId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+  // Filter submissions based on selected filters
+  useEffect(() => {
+    let filtered = submissions;
 
-        const userStatsData = statsResponse.data.data || {};
+    if (selectedVerdictFilter !== 'All') {
+      filtered = filtered.filter(s => s.verdict === selectedVerdictFilter);
+    }
 
-        // Fetch leaderboard entry
-        const leaderResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/leaderboards/entries?user_id=${userId}`
-        );
+    if (selectedLanguageFilter !== 'All') {
+      filtered = filtered.filter(s => s.language === selectedLanguageFilter);
+    }
 
-        const leaderEntry = leaderResponse.data.data?.[0];
+    setFilteredSubmissions(filtered);
+  }, [submissions, selectedVerdictFilter, selectedLanguageFilter]);
 
-        setStats({
-          username: username || 'Unknown',
-          house: house,
-          totalPoints: leaderEntry?.total_score || userStatsData.totalPoints || 0,
-          problemsSolved: leaderEntry?.problems_solved || userStatsData.problemsSolved || 0,
-          houseRank: userStatsData.houseRank || 0,
-          totalSubmissions: userStatsData.totalSubmissions || 0,
-          acceptanceRate: userStatsData.acceptanceRate || 0,
-        });
+  const fetchUserProfile = async () => {
+    try {
+      const userData = JSON.parse(user || '{}');
+      const response = await axios.get('/api/v1/users/profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (leaderEntry) {
-          setLeaderboardRank(leaderEntry);
-        }
+      setStats({
+        username: userData.username,
+        house: userData.house,
+        total_points: response.data.total_points || 0,
+        problems_solved: response.data.problems_solved || 0,
+        submission_count: response.data.submission_count || 0,
+        acceptance_rate: response.data.acceptance_rate || 0,
+        rank: response.data.rank || 999,
+      });
+    } catch (err: any) {
+      logger.error('Failed to fetch profile:', err);
+      setError('Failed to load profile data');
+    }
+  };
 
-        // Fetch user submissions
-        const submissionsResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/submissions?user_id=${userId}&limit=50`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+  const fetchSubmissions = async () => {
+    try {
+      setLoading(true);
+      const userData = JSON.parse(user || '{}');
+      const response = await axios.get('/api/v1/users/submissions', {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { limit: 100 },
+      });
 
-        const submissionsData =
-          submissionsResponse.data.data?.map((sub: any) => ({
-            id: sub.id,
-            problemId: sub.problem_id,
-            problemTitle: sub.problem_title || `Problem ${sub.problem_id}`,
-            language: sub.language,
-            verdict: sub.verdict,
-            score: sub.score,
-            submissionDate: new Date(sub.submitted_at || sub.created_at).toLocaleString(),
-            runtime: sub.runtime,
-            passedTests: sub.passed_tests,
-            totalTests: sub.total_tests,
-          })) || [];
+      const subs = response.data.submissions.map((sub: any) => ({
+        submission_id: sub.submission_id,
+        problem_id: sub.problem_id,
+        problem_name: sub.problem_name || 'Unknown Problem',
+        verdict: sub.verdict,
+        score: sub.score,
+        language: sub.language,
+        submitted_at: sub.submitted_at,
+        test_cases_passed: sub.test_cases_passed || 0,
+        test_cases_total: sub.test_cases_total || 0,
+      }));
 
-        setSubmissions(submissionsData);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        // Use mock data if API fails
-        const house = localStorage.getItem('house') || 'Gryffindor';
-        setStats({
-          username: localStorage.getItem('username') || 'Wizard',
-          house: house,
-          totalPoints: 45,
-          problemsSolved: 4,
-          houseRank: 2,
-          totalSubmissions: 8,
-          acceptanceRate: 50,
-        });
-        setSubmissions([
-          {
-            id: '1',
-            problemId: 1,
-            problemTitle: 'Two Sum',
-            language: 'Python',
-            verdict: 'Accepted',
-            score: 10,
-            submissionDate: new Date().toLocaleString(),
-          },
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
+      setSubmissions(subs);
+      setFilteredSubmissions(subs);
+    } catch (err: any) {
+      logger.error('Failed to fetch submissions:', err);
+      setError('Failed to load submissions');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchUserData();
-  }, [navigate]);
+  const handleViewDetails = (submission: Submission) => {
+    setSelectedSubmission(submission);
+    setShowDetailModal(true);
+  };
 
-  if (loading) {
+  const getVerdictColor = (verdict: string) => {
+    switch (verdict) {
+      case 'Accepted':
+        return '#22c55e';
+      case 'Wrong Answer':
+        return '#ef4444';
+      case 'Runtime Error':
+        return '#f97316';
+      case 'Time Limit Exceeded':
+        return '#eab308';
+      case 'Compilation Error':
+        return '#d946ef';
+      case 'Partially Correct':
+        return '#3b82f6';
+      default:
+        return '#64748b';
+    }
+  };
+
+  const getHouseStyle = () => {
+    if (!stats) return HOUSE_INFO.gryffindor;
+    const houseLower = stats.house.toLowerCase();
+    return HOUSE_INFO[houseLower as keyof HouseInfo] || HOUSE_INFO.gryffindor;
+  };
+
+  if (loading && !stats) {
     return (
-      <div className="profile-loading">
-        <div className="loading-spinner"></div>
-        <p>Fetching your magical stats...</p>
+      <div className={styles.container}>
+        <div className={styles.loadingSpinner}>
+          <div className={styles.spinner}></div>
+          <p>Loading your magical profile...</p>
+        </div>
       </div>
     );
   }
 
-  if (!stats) {
-    return <div className="profile-error">Failed to load profile</div>;
-  }
-
-  const houseStyle = houseColors[stats.house] || houseColors['Gryffindor'];
+  const houseStyle = getHouseStyle();
 
   return (
-    <div className="profile-container">
+    <div className={styles.container}>
       {/* Header with House Crest */}
       <div
-        className="profile-header"
-        style={{ backgroundColor: houseStyle.bg, color: houseStyle.text }}
+        className={styles.header}
+        style={{
+          borderBottomColor: houseStyle.color,
+          backgroundColor: houseStyle.bgColor + '20',
+        }}
       >
-        <div className="profile-crest">
-          <span className="crest-emoji">{houseStyle.crest}</span>
-          <h1 className="profile-house">{stats.house}</h1>
+        <div className={styles.crest}>
+          <div
+            className={styles.crestIcon}
+            style={{ fontSize: '3rem' }}
+          >
+            {houseStyle.emoji}
+          </div>
+          <div className={styles.houseName} style={{ color: houseStyle.color }}>
+            {stats?.house}
+          </div>
         </div>
 
-        <div className="profile-username">
-          <h2>{stats.username}</h2>
-          <p className="profile-tagline">Wizard Code Champion</p>
+        <div className={styles.userInfo}>
+          <h1 className={styles.username}>{stats?.username}</h1>
+          <div className={styles.housePoints} style={{ color: houseStyle.color }}>
+            🏆 House Member
+          </div>
         </div>
-
-        <button
-          className="profile-logout-btn"
-          onClick={() => {
-            localStorage.clear();
-            navigate('/login');
-          }}
-        >
-          Logout
-        </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="profile-stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon">⭐</div>
-          <div className="stat-content">
-            <p className="stat-label">Total Points</p>
-            <p className="stat-value">{stats.totalPoints}</p>
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard} style={{ borderTopColor: houseStyle.color }}>
+          <div className={styles.statValue} style={{ color: houseStyle.color }}>
+            {stats?.total_points || 0}
           </div>
+          <div className={styles.statLabel}>Total Points</div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon">✓</div>
-          <div className="stat-content">
-            <p className="stat-label">Problems Solved</p>
-            <p className="stat-value">{stats.problemsSolved}</p>
+        <div className={styles.statCard} style={{ borderTopColor: houseStyle.color }}>
+          <div className={styles.statValue} style={{ color: houseStyle.color }}>
+            {stats?.problems_solved || 0}
           </div>
+          <div className={styles.statLabel}>Problems Solved</div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon">🏆</div>
-          <div className="stat-content">
-            <p className="stat-label">House Rank</p>
-            <p className="stat-value">#{stats.houseRank || 'N/A'}</p>
+        <div className={styles.statCard} style={{ borderTopColor: houseStyle.color }}>
+          <div className={styles.statValue} style={{ color: houseStyle.color }}>
+            #{stats?.rank || 'N/A'}
           </div>
+          <div className={styles.statLabel}>House Rank</div>
         </div>
 
-        <div className="stat-card">
-          <div className="stat-icon">📊</div>
-          <div className="stat-content">
-            <p className="stat-label">Acceptance Rate</p>
-            <p className="stat-value">{stats.acceptanceRate || 0}%</p>
+        <div className={styles.statCard} style={{ borderTopColor: houseStyle.color }}>
+          <div className={styles.statValue} style={{ color: houseStyle.color }}>
+            {stats?.acceptance_rate || 0}%
           </div>
+          <div className={styles.statLabel}>Acceptance Rate</div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="profile-tabs">
-        <button
-          className={`tab-button ${activeTab === 'stats' ? 'active' : ''}`}
-          onClick={() => setActiveTab('stats')}
-        >
-          📈 Overview
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'submissions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('submissions')}
-        >
-          📝 Submissions ({submissions.length})
-        </button>
-      </div>
+      {/* Submission History */}
+      <div className={styles.submissionsSection}>
+        <h2 className={styles.sectionTitle}>Submission History</h2>
 
-      {/* Tab Content */}
-      <div className="profile-tab-content">
-        {activeTab === 'stats' && (
-          <div className="stats-view">
-            <div className="stat-box">
-              <h3>📚 Learning Summary</h3>
-              <div className="summary-content">
-                <p>
-                  <strong>Total Submissions:</strong> {stats.totalSubmissions}
-                </p>
-                <p>
-                  <strong>Problems Solved:</strong> {stats.problemsSolved}/8
-                </p>
-                <p>
-                  <strong>Points Earned:</strong> {stats.totalPoints}
-                </p>
-                <p>
-                  <strong>House:</strong> {stats.house} {houseStyle.crest}
-                </p>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: `${(stats.problemsSolved / 8) * 100}%`,
-                      backgroundColor: houseStyle.bg,
-                    }}
-                  ></div>
-                </div>
-                <p className="progress-text">
-                  {stats.problemsSolved} of 8 problems completed
-                </p>
+        {/* Filters */}
+        <div className={styles.filterBar}>
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Verdict:</label>
+            <select
+              value={selectedVerdictFilter}
+              onChange={e => setSelectedVerdictFilter(e.target.value)}
+              className={styles.filterSelect}
+              style={{ borderColor: houseStyle.color }}
+            >
+              <option>All</option>
+              <option>Accepted</option>
+              <option>Wrong Answer</option>
+              <option>Runtime Error</option>
+              <option>Time Limit Exceeded</option>
+              <option>Compilation Error</option>
+              <option>Partially Correct</option>
+            </select>
+          </div>
+
+          <div className={styles.filterGroup}>
+            <label className={styles.filterLabel}>Language:</label>
+            <select
+              value={selectedLanguageFilter}
+              onChange={e => setSelectedLanguageFilter(e.target.value)}
+              className={styles.filterSelect}
+              style={{ borderColor: houseStyle.color }}
+            >
+              <option>All</option>
+              <option>python</option>
+              <option>java</option>
+              <option>cpp</option>
+              <option>javascript</option>
+              <option>go</option>
+              <option>rust</option>
+              <option>csharp</option>
+            </select>
+          </div>
+
+          <div className={styles.submissionCount}>
+            {filteredSubmissions.length} submission{filteredSubmissions.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {filteredSubmissions.length === 0 ? (
+          <div className={styles.emptyState}>
+            <div className={styles.emptyIcon}>📝</div>
+            <p>No submissions found. Start solving problems!</p>
+          </div>
+        ) : (
+          <div className={styles.submissionsTable}>
+            <div className={styles.tableHeader}>
+              <div className={styles.tableCell} style={{ flex: 2 }}>
+                Problem
+              </div>
+              <div className={styles.tableCell} style={{ flex: 1 }}>
+                Verdict
+              </div>
+              <div className={styles.tableCell} style={{ flex: 1 }}>
+                Language
+              </div>
+              <div className={styles.tableCell} style={{ flex: 1 }}>
+                Score
+              </div>
+              <div className={styles.tableCell} style={{ flex: 1 }}>
+                Tests
+              </div>
+              <div className={styles.tableCell} style={{ flex: 1.5 }}>
+                Date
+              </div>
+              <div className={styles.tableCell} style={{ flex: 0.8 }}>
+                Action
               </div>
             </div>
 
-            {leaderboardRank && (
-              <div className="stat-box">
-                <h3>🥇 Leaderboard Position</h3>
-                <div className="leaderboard-card">
-                  <p>
-                    <strong>{leaderboardRank.username}</strong>
-                  </p>
-                  <p className="leaderboard-stats">
-                    <span>{leaderboardRank.total_score} points</span>
-                    <span>·</span>
-                    <span>{leaderboardRank.problems_solved} problems</span>
-                  </p>
+            {filteredSubmissions.map(submission => (
+              <div key={submission.submission_id} className={styles.tableRow}>
+                <div className={styles.tableCell} style={{ flex: 2 }}>
+                  <span className={styles.problemName}>
+                    #{submission.problem_id}
+                  </span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 1 }}>
+                  <span
+                    className={styles.verdictBadge}
+                    style={{
+                      backgroundColor: getVerdictColor(submission.verdict) + '20',
+                      color: getVerdictColor(submission.verdict),
+                      borderColor: getVerdictColor(submission.verdict),
+                    }}
+                  >
+                    {submission.verdict}
+                  </span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 1 }}>
+                  <span className={styles.language}>{submission.language}</span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 1 }}>
+                  <span className={styles.score}>{submission.score}</span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 1 }}>
+                  <span className={styles.tests}>
+                    {submission.test_cases_passed}/{submission.test_cases_total}
+                  </span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 1.5 }}>
+                  <span className={styles.date}>
+                    {new Date(submission.submitted_at).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className={styles.tableCell} style={{ flex: 0.8 }}>
+                  <button
+                    className={styles.viewButton}
+                    onClick={() => handleViewDetails(submission)}
+                    style={{ color: houseStyle.color }}
+                  >
+                    View
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'submissions' && (
-          <div className="submissions-view">
-            {submissions.length === 0 ? (
-              <div className="no-submissions">
-                <p>🧙‍♂️ No submissions yet. Start coding!</p>
-              </div>
-            ) : (
-              <div className="submissions-list">
-                {submissions.map((sub) => (
-                  <div key={sub.id} className="submission-card">
-                    <div className="submission-header">
-                      <h4 className="submission-title">{sub.problemTitle}</h4>
-                      <span
-                        className="submission-verdict"
-                        style={{
-                          backgroundColor: verdictColors[sub.verdict] || '#9CA3AF',
-                        }}
-                      >
-                        {sub.verdict}
-                      </span>
-                    </div>
-
-                    <div className="submission-meta">
-                      <span className="meta-item">
-                        <strong>Language:</strong> {sub.language}
-                      </span>
-                      <span className="meta-item">
-                        <strong>Score:</strong> {sub.score} pts
-                      </span>
-                      <span className="meta-item">
-                        <strong>Date:</strong> {sub.submissionDate}
-                      </span>
-                    </div>
-
-                    {sub.totalTests && (
-                      <div className="submission-tests">
-                        <p>
-                          Test Cases: {sub.passedTests}/{sub.totalTests} passed
-                        </p>
-                        <div className="test-progress">
-                          <div
-                            className="test-fill"
-                            style={{
-                              width: `${((sub.passedTests || 0) / (sub.totalTests || 1)) * 100}%`,
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
         )}
       </div>
+
+      {/* Submission Detail Modal */}
+      {selectedSubmission && (
+        <SubmissionDetailModal
+          submission={selectedSubmission}
+          isOpen={showDetailModal}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedSubmission(null);
+          }}
+          houseColor={houseStyle.color}
+        />
+      )}
     </div>
   );
-};
+}
 
-export default Profile;
+// Simple logger for debugging
+const logger = {
+  error: (msg: string, err: any) => console.error(`[Profile] ${msg}`, err),
+  info: (msg: string, data?: any) => console.log(`[Profile] ${msg}`, data),
+};

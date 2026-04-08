@@ -54,15 +54,29 @@ function DashboardPage() {
 
       if (problemsRes.status === 'fulfilled') {
         const data = problemsRes.value;
-        setProblems(data.problems || data.data || (Array.isArray(data) ? data : []));
+        // Backend returns flat array from /api/v1/problems
+        const list = data.problems || data.data || (Array.isArray(data) ? data : []);
+        setProblems(Array.isArray(list) ? list : []);
       }
       if (globalRes.status === 'fulfilled') {
         const data = globalRes.value;
-        setLeaderboard(data.leaderboard || data.users || []);
+        // Backend returns flat array from /api/v1/leaderboards/global
+        const list = data.leaderboard || data.users || (Array.isArray(data) ? data : []);
+        setLeaderboard(Array.isArray(list) ? list : []);
       }
       if (housesRes.status === 'fulfilled') {
         const hData = housesRes.value;
-        setHouseBoard(hData?.houses || hData || {});
+        // Backend returns flat array of house objects [{house, total_score, members, ...}]
+        if (Array.isArray(hData)) {
+          const houseMap = {};
+          hData.forEach(h => {
+            const key = (h.house || '').toLowerCase();
+            if (key) houseMap[key] = h;
+          });
+          setHouseBoard(houseMap);
+        } else {
+          setHouseBoard(hData?.houses || hData || {});
+        }
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -200,7 +214,7 @@ function DashboardPage() {
                     {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${(entry.rank || idx + 1)}`}
                   </div>
                   <div className="coder-info">
-                    <span className="coder-name">{entry.username || entry.user_id || 'Anonymous'}</span>
+                    <span className="coder-name">{entry.username || entry.name || entry.user_id || 'Anonymous'}</span>
                     <span className="coder-house">{entry.house || '—'}</span>
                   </div>
                   <div className="coder-score">{entry.score || 0} pts</div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
 import {
-  Play, Send, Trophy, Clock, Zap, ChevronRight, ChevronDown, ChevronUp,
+  Play, Send, Clock, Zap, ChevronRight, ChevronDown, ChevronUp,
   CheckCircle, XCircle, AlertCircle, Sparkles, BookOpen, Terminal,
 } from 'lucide-react';
 import { submissionAPI, problemAPI, languages, codeTemplates } from '../services/apiService';
@@ -27,11 +27,11 @@ function launchConfetti() {
   const ctx = canvas.getContext('2d');
 
   const colors = [
-    '#d32f2f', '#ffd54f', '#fff9c4', // Gryffindor
-    '#f57f17', '#fbc02d', '#ffeb3b', // Hufflepuff
-    '#1565c0', '#7c4dff', '#90caf9', // Ravenclaw
-    '#00695c', '#26a69a', '#80cbc4', // Slytherin
-    '#ffd700', '#ff6b6b', '#c084fc', // Magical
+    '#d32f2f', '#ffd54f', '#fff9c4',
+    '#f57f17', '#fbc02d', '#ffeb3b',
+    '#1565c0', '#7c4dff', '#90caf9',
+    '#00695c', '#26a69a', '#80cbc4',
+    '#ffd700', '#ff6b6b', '#c084fc',
   ];
 
   const particles = [];
@@ -84,6 +84,31 @@ const HOUSE_THEMES = {
   slytherin: { primary: '#1a7a3a', secondary: '#a8b5c8', glow: 'rgba(26,122,58,0.3)', name: 'Slytherin' },
 };
 
+/**
+ * Map backend status to capitalized verdict for display
+ */
+function normalizeVerdict(status) {
+  if (!status) return 'Unknown';
+  const map = {
+    'accepted': 'Accepted',
+    'wrong_answer': 'Wrong Answer',
+    'wrong answer': 'Wrong Answer',
+    'runtime_error': 'Runtime Error',
+    'runtime error': 'Runtime Error',
+    'time_limit_exceeded': 'Time Limit Exceeded',
+    'time limit exceeded': 'Time Limit Exceeded',
+    'memory_limit_exceeded': 'Memory Limit Exceeded',
+    'compilation_error': 'Compilation Error',
+    'compilation error': 'Compilation Error',
+    'partial': 'Partial',
+    'partially correct': 'Partial',
+    'system_error': 'System Error',
+    'error': 'Error',
+    'pending': 'Pending',
+  };
+  return map[status.toLowerCase()] || status;
+}
+
 function CodeArena() {
   const navigate = useNavigate();
   const { token, user } = useAuthStore();
@@ -101,7 +126,6 @@ function CodeArena() {
   const [submitResult, setSubmitResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [problemsError, setProblemsError] = useState(null);
-  const [activeResultTab, setActiveResultTab] = useState('testcases'); // 'testcases' | 'output'
   const [descCollapsed, setDescCollapsed] = useState(false);
   const [hintLoading, setHintLoading] = useState(false);
   const [hint, setHint] = useState(null);
@@ -111,7 +135,7 @@ function CodeArena() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (!token || !user) navigate('/auth');
+    if (!token || !user) navigate('/');
   }, [token, user, navigate]);
 
   // Fetch problems on mount
@@ -166,7 +190,25 @@ function CodeArena() {
 
     try {
       const result = await submissionAPI.run(selectedProblem.id, language, code);
-      setRunResult({ ...result, type: 'run', timestamp: new Date().toLocaleTimeString() });
+      // Backend returns: { status, verdict, passed, total, test_cases: [{test_case_number, input, expected_output, actual_output, passed, runtime_ms, memory_mb, error}] }
+      // Normalize to frontend shape: { passed, total, results: [{verdict, input, expected, output, time, memory}] }
+      const rawCases = result.test_cases || [];
+      const normalizedResults = rawCases.map((tc) => ({
+        verdict: tc.passed ? 'Accepted' : (tc.error ? 'Runtime Error' : 'Wrong Answer'),
+        input: tc.input || '',
+        expected: tc.expected_output || '',
+        output: tc.actual_output || (tc.error ? `Error: ${tc.error}` : '(empty)'),
+        time: tc.runtime_ms != null ? (tc.runtime_ms / 1000).toFixed(3) : null,
+        memory: tc.memory_mb != null ? Math.round(tc.memory_mb) : null,
+      }));
+
+      setRunResult({
+        passed: result.passed ?? rawCases.filter(tc => tc.passed).length,
+        total: result.total ?? rawCases.length,
+        results: normalizedResults,
+        type: 'run',
+        timestamp: new Date().toLocaleTimeString(),
+      });
     } catch (error) {
       console.error('Run failed:', error);
       setRunResult({
@@ -188,69 +230,44 @@ function CodeArena() {
     setRunResult(null);
 
     try {
-      const submission = await submissionAPI.submit(selectedProblem.id, language, code);
-      const submissionId = submission.submission_id;
+      const res = await submissionAPI.submit(selectedProblem.id, language, code, user);
+      // Backend returns: { status: "success", submission: { submission_id, verdict, passed_test_cases, total_test_cases, score, ... } }
+      const submission = res.submission || res;
+      const verdict = normalizeVerdict(submission.verdict || submission.status || '');
 
-      // Poll for result
-      let attempts = 0;
-      const maxAttempts = 60;
-      const pollInterval = 1000;
-
-      const pollResult = async () => {
-        try {
-          const statusData = await submissionAPI.getStatus(submissionId);
-          if (statusData.status && statusData.status !== 'pending') {
-            setSubmitResult({
-              ...statusData,
-              submitted: true,
-              type: 'submit',
-              timestamp: new Date().toLocaleTimeString(),
-            });
-            setIsSubmitting(false);
-            if (statusData.verdict === 'Accepted') launchConfetti();
-            return;
-          }
-          if (attempts < maxAttempts) {
-            attempts++;
-            setTimeout(pollResult, pollInterval);
-          } else {
-            setSubmitResult({
-              error: true,
-              message: 'Evaluation timed out. Please try again.',
-              type: 'submit',
-              timestamp: new Date().toLocaleTimeString(),
-            });
-            setIsSubmitting(false);
-          }
-        } catch (err) {
-          if (attempts < maxAttempts) {
-            attempts++;
-            setTimeout(pollResult, pollInterval);
-          } else {
-            setSubmitResult({
-              error: true,
-              message: 'Failed to get submission status.',
-              type: 'submit',
-              timestamp: new Date().toLocaleTimeString(),
-            });
-            setIsSubmitting(false);
-          }
-        }
-      };
-      pollResult();
-    } catch (error) {
-      console.error('Submit failed:', error);
       setSubmitResult({
-        error: true,
-        message: error.detail || error.message || 'Submission failed.',
+        verdict,
+        test_cases_passed: submission.passed_test_cases ?? submission.test_cases_passed ?? 0,
+        test_cases_total: submission.total_test_cases ?? submission.test_cases_total ?? 0,
+        score: submission.score || 0,
+        message: submission.compilation_error || '',
+        execution_time_ms: submission.runtime_ms || 0,
+        submitted: true,
         type: 'submit',
         timestamp: new Date().toLocaleTimeString(),
       });
+
+      if (verdict === 'Accepted') launchConfetti();
+    } catch (error) {
+      console.error('Submit failed:', error);
+      let errMsg = typeof error.detail === 'string' ? error.detail : 'Submission failed.';
+      if (Array.isArray(error.detail)) {
+        errMsg = error.detail.map(e => String(e.msg)).join(', ');
+      } else if (error.message) {
+        errMsg = error.message;
+      }
+      setSubmitResult({
+        error: true,
+        message: errMsg,
+        type: 'submit',
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  // === AI Hint (gracefully handles if mentor service is down) ===
+  // === AI Hint ===
   const handleAskHint = async () => {
     if (!selectedProblem) return;
     setHintLoading(true);
@@ -455,7 +472,7 @@ function CodeArena() {
                             </div>
                             <div className="example-section">
                               <span className="label">Output:</span>
-                              <code>{tc.expected}</code>
+                              <code>{tc.output || tc.expected}</code>
                             </div>
                           </motion.div>
                         ))}
@@ -531,10 +548,10 @@ function CodeArena() {
 
           <div className="results-content">
             <AnimatePresence mode="wait">
-              {/* Loading state for submission */}
-              {isSubmitting && (
+              {/* Loading state */}
+              {(isRunning || isSubmitting) && (
                 <motion.div
-                  key="submitting"
+                  key="running"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -542,14 +559,16 @@ function CodeArena() {
                 >
                   <div className="judging-animation">
                     <div className="judging-spinner"></div>
-                    <p>⚡ Evaluating your spell...</p>
-                    <span className="judging-sub">Running against all test cases</span>
+                    <p>⚡ {isSubmitting ? 'Evaluating your spell...' : 'Running sample tests...'}</p>
+                    <span className="judging-sub">
+                      {isSubmitting ? 'Running against all test cases' : 'Testing with sample inputs'}
+                    </span>
                   </div>
                 </motion.div>
               )}
 
               {/* Results Display */}
-              {!isSubmitting && currentResult ? (
+              {!isRunning && !isSubmitting && currentResult ? (
                 <motion.div
                   key="results"
                   initial={{ opacity: 0, y: 16 }}
@@ -645,38 +664,23 @@ function CodeArena() {
                               {currentResult.verdict === 'Time Limit Exceeded' && <Clock size={56} />}
                               {currentResult.verdict === 'Runtime Error' && <AlertCircle size={56} />}
                               {currentResult.verdict === 'Compilation Error' && <XCircle size={56} />}
+                              {currentResult.verdict === 'Error' && <XCircle size={56} />}
                             </div>
                             <h2 className="verdict-text">{currentResult.verdict}</h2>
                             <p className="passed-count">
-                              Passed <strong>{currentResult.test_cases_passed}/{currentResult.test_cases_total}</strong> test cases
+                              {currentResult.message || `Passed ${currentResult.test_cases_passed}/${currentResult.test_cases_total} test cases`}
                             </p>
-                            {currentResult.score !== undefined && (
+                            {currentResult.score !== undefined && currentResult.score > 0 && (
                               <p className="score-display">
-                                +{currentResult.score} points
+                                +{currentResult.score} points ⭐
+                              </p>
+                            )}
+                            {currentResult.execution_time_ms > 0 && (
+                              <p className="time-display">
+                                ⏱ {currentResult.execution_time_ms.toFixed(1)}ms
                               </p>
                             )}
                           </motion.div>
-
-                          {/* Test case badges grid */}
-                          {currentResult.results && currentResult.results.length > 0 && (
-                            <div className="detailed-results">
-                              <h3>Test Case Results</h3>
-                              <div className="results-grid">
-                                {currentResult.results.map((res, idx) => (
-                                  <motion.div
-                                    key={idx}
-                                    initial={{ opacity: 0, scale: 0.7 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.04 }}
-                                    className={`result-badge ${(res.verdict || '').toLowerCase().replace(/\s+/g, '-')}`}
-                                    title={`TC ${idx + 1}: ${res.verdict}`}
-                                  >
-                                    {res.verdict === 'Accepted' ? '✓' : '✗'} {idx + 1}
-                                  </motion.div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </>
@@ -684,7 +688,7 @@ function CodeArena() {
                 </motion.div>
               ) : (
                 /* Empty state */
-                !isSubmitting && (
+                !isRunning && !isSubmitting && (
                   <motion.div
                     key="empty"
                     initial={{ opacity: 0 }}

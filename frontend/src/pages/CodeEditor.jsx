@@ -141,32 +141,73 @@ function CodeEditor() {
     setAiFeedback('');
 
     try {
-      const submitRes = await submissionAPI.submit(selected.id, language, code);
-      const submissionId = submitRes.submission_id;
+      // Pass user information from auth store
+      const userInfo = {
+        user_id: user?.user_id,
+        username: user?.username,
+        house: user?.house,
+      };
 
-      // Poll for results
-      const finalResult = await submissionAPI.pollStatus(submissionId, 120, 500);
+      const submitRes = await submissionAPI.submit(selected.id, language, code, userInfo);
+      
+      // Handle response structure - could be:
+      // 1. { status: "success", submission: { ... } }
+      // 2. Direct submission result { submission_id: ..., verdict: ..., ... }
+      const submission = submitRes.submission || submitRes;
+      const submissionId = submission.submission_id || submission.id;
 
-      setResult({
-        status: finalResult.status || 'pending',
-        verdict: finalResult.verdict || finalResult.status,
-        test_cases_passed: finalResult.test_cases_passed || 0,
-        test_cases_total: finalResult.test_cases_total || 0,
-        score: finalResult.score || 0,
-        runtime_ms: finalResult.runtime_ms || null,
-        memory_kb: finalResult.memory_kb || null,
-        message: finalResult.message || 'Submission processed',
-        details: finalResult.details || [],
-        output: finalResult.output || '',
-        expected_output: finalResult.expected_output || '',
-      });
+      if (!submissionId) {
+        throw new Error('No submission ID received from server');
+      }
 
-      // Confetti on accepted!
-      if (finalResult.status === 'accepted' || finalResult.verdict === 'AC') {
-        launchConfetti();
-        fetchUserStats();
+      // For instant results (already computed)
+      if (submission.verdict && submission.verdict !== 'Pending') {
+        setResult({
+          status: 'success',
+          verdict: submission.verdict,
+          test_cases_passed: submission.passed_test_cases || 0,
+          test_cases_total: submission.total_test_cases || 0,
+          score: submission.score || 0,
+          runtime_ms: submission.runtime_ms || null,
+          memory_kb: submission.memory_mb ? submission.memory_mb * 1024 : null,
+          message: `${submission.verdict} - ${submission.passed_test_cases}/${submission.total_test_cases} test cases passed`,
+          details: submission.test_cases || [],
+          output: submission.actual_output || '',
+          expected_output: submission.expected_output || '',
+        });
+
+        // Confetti on accepted!
+        if (submission.verdict === 'Accepted') {
+          launchConfetti();
+          fetchUserStats();
+        }
+      } else {
+        // Poll for results if verdict not available
+        const finalResult = await submissionAPI.pollStatus(submissionId, 120, 500);
+        const finalSubmission = finalResult.submission || finalResult;
+
+        setResult({
+          status: 'success',
+          verdict: finalSubmission.verdict || finalSubmission.status || 'Pending',
+          test_cases_passed: finalSubmission.passed_test_cases || 0,
+          test_cases_total: finalSubmission.total_test_cases || 0,
+          score: finalSubmission.score || 0,
+          runtime_ms: finalSubmission.runtime_ms || null,
+          memory_kb: finalSubmission.memory_mb ? finalSubmission.memory_mb * 1024 : null,
+          message: `${finalSubmission.verdict || 'Processed'} - ${finalSubmission.passed_test_cases || 0}/${finalSubmission.total_test_cases || 0} test cases passed`,
+          details: finalSubmission.test_cases || [],
+          output: finalSubmission.actual_output || '',
+          expected_output: finalSubmission.expected_output || '',
+        });
+
+        // Confetti on accepted!
+        if (finalSubmission.verdict === 'Accepted') {
+          launchConfetti();
+          fetchUserStats();
+        }
       }
     } catch (error) {
+      console.error('Submission error:', error);
       setResult({
         status: 'error',
         message: error.detail || error.message || 'Submission failed. Please try again.',
