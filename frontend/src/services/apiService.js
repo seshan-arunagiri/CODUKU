@@ -1,7 +1,7 @@
 /**
  * CODUKU API Service
- * Centralized API calls to FastAPI microservices via NGINX gateway
- * Base URL: http://localhost/api/v1 (through NGINX on port 80)
+ * Centralized API calls to FastAPI backend
+ * Works in both dev mode (proxy via CRA) and production (through NGINX)
  */
 
 const API_BASE = process.env.REACT_APP_API_URL || '/api/v1';
@@ -35,6 +35,7 @@ export const authAPI = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: data.email,
+        name: data.username || data.email.split('@')[0],
         username: data.username || data.email.split('@')[0],
         password: data.password,
         house: data.house || 'gryffindor',
@@ -66,11 +67,21 @@ export const authAPI = {
 
 /**
  * ============= PROBLEMS / QUESTIONS ENDPOINTS =============
+ * Backend serves both /api/v1/problems and /api/v1/questions
  */
 export const problemAPI = {
   getAll: async (limit = 100, offset = 0) => {
-    const params = new URLSearchParams({ limit, offset });
-    const response = await fetch(`${API_BASE}/problems?${params}`, {
+    // Try /problems first, fallback to /questions
+    try {
+      const response = await fetch(`${API_BASE}/problems`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      });
+      if (response.ok) return handleResponse(response);
+    } catch (e) { /* fall through */ }
+
+    // Fallback to /questions endpoint
+    const response = await fetch(`${API_BASE}/questions`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     });
@@ -78,7 +89,15 @@ export const problemAPI = {
   },
 
   getById: async (problemId) => {
-    const response = await fetch(`${API_BASE}/problems/${problemId}`, {
+    try {
+      const response = await fetch(`${API_BASE}/problems/${problemId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      });
+      if (response.ok) return handleResponse(response);
+    } catch (e) { /* fall through */ }
+
+    const response = await fetch(`${API_BASE}/questions/${problemId}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     });
@@ -90,7 +109,10 @@ export const problemAPI = {
  * ============= SUBMISSION ENDPOINTS =============
  */
 export const submissionAPI = {
-  submit: async (problemId, language, sourceCode) => {
+  /**
+   * Submit code for FULL evaluation (all test cases, score counted)
+   */
+  submit: async (problemId, language, sourceCode, userInfo = {}) => {
     const response = await fetch(`${API_BASE}/submissions`, {
       method: 'POST',
       headers: {
@@ -100,12 +122,18 @@ export const submissionAPI = {
       body: JSON.stringify({
         problem_id: problemId,
         language: language,
-        source_code: sourceCode,
+        code: sourceCode,
+        user_id: userInfo.id || userInfo.user_id || 'anonymous',
+        username: userInfo.username || userInfo.name || 'Anonymous',
+        house: userInfo.house || 'gryffindor',
       }),
     });
     return handleResponse(response);
   },
 
+  /**
+   * Run code against SAMPLE test cases only (no score, no persistence)
+   */
   run: async (problemId, language, sourceCode) => {
     const response = await fetch(`${API_BASE}/submissions/run`, {
       method: 'POST',
@@ -116,12 +144,15 @@ export const submissionAPI = {
       body: JSON.stringify({
         problem_id: problemId,
         language: language,
-        source_code: sourceCode,
+        code: sourceCode,
       }),
     });
     return handleResponse(response);
   },
 
+  /**
+   * Get submission status by ID
+   */
   getStatus: async (submissionId) => {
     const response = await fetch(`${API_BASE}/submissions/${submissionId}`, {
       method: 'GET',
@@ -130,14 +161,34 @@ export const submissionAPI = {
     return handleResponse(response);
   },
 
-  pollStatus: async (submissionId, maxAttempts = 60, interval = 1000) => {
+  /**
+   * Get all submissions for current user
+   */
+  getAll: async () => {
+    const response = await fetch(`${API_BASE}/submissions`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Poll submission status until complete
+   */
+  pollStatus: async (submissionId, maxAttempts = 120, interval = 500) => {
     for (let i = 0; i < maxAttempts; i++) {
-      const result = await submissionAPI.getStatus(submissionId);
-      if (result.status && result.status !== 'pending') {
-        return result;
+      try {
+        const result = await submissionAPI.getStatus(submissionId);
+        // submission is complete when status is not 'pending'
+        if (result && result.status && result.status !== 'pending') {
+          return result;
+        }
+      } catch (error) {
+        console.warn('Poll attempt failed:', error);
       }
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
+    // Timeout — return final status
     return submissionAPI.getStatus(submissionId);
   },
 };
@@ -147,10 +198,9 @@ export const submissionAPI = {
  */
 export const leaderboardAPI = {
   getGlobal: async (limit = 100) => {
-    const params = new URLSearchParams({ limit });
-    const response = await fetch(`${API_BASE}/leaderboards/global?${params}`, {
+    const response = await fetch(`${API_BASE}/leaderboards/global`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     });
     return handleResponse(response);
   },
@@ -158,7 +208,15 @@ export const leaderboardAPI = {
   getHouses: async () => {
     const response = await fetch(`${API_BASE}/leaderboards/houses`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+    });
+    return handleResponse(response);
+  },
+
+  getHouseMembers: async (houseName) => {
+    const response = await fetch(`${API_BASE}/leaderboards/house/${houseName}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
     });
     return handleResponse(response);
   },
@@ -216,7 +274,9 @@ export const wsManager = {
       try {
         const data = JSON.parse(event.data);
         if (onMessage) onMessage(data);
-        if (data.type === 'leaderboard_update' && onStatusUpdated) onStatusUpdated(data);
+        if ((data.type === 'leaderboard_update' || data.event === 'leaderboard_update') && onStatusUpdated) {
+          onStatusUpdated(data);
+        }
       } catch (e) { /* ignore */ }
     };
     ws.onerror = () => {};
@@ -232,7 +292,6 @@ export const wsManager = {
 
 /**
  * ============= LANGUAGE SUPPORT =============
- * IMPORTANT: This is an ARRAY for easy .map() iteration in components
  */
 export const languages = [
   { value: 'python3', id: 71, icon: '🐍', label: 'Python 3', monacoLang: 'python' },
@@ -249,7 +308,7 @@ export const languages = [
  * ============= CODE TEMPLATES =============
  */
 export const codeTemplates = {
-  python3: `# Write your Python solution here\nimport sys\n\ndef solve():\n    # Read input using input() or sys.stdin\n    pass\n\nsolve()\n`,
+  python3: `# Write your Python solution here\nimport sys\n\ndef solve():\n    # Read input using input() or sys.stdin\n    line = input()\n    print(line)\n\nsolve()\n`,
   cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // Write your C++ solution here\n    \n    return 0;\n}\n`,
   java: `import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your Java solution here\n    }\n}\n`,
   javascript: `// Write your JavaScript solution here\nconst readline = require('readline');\nconst rl = readline.createInterface({ input: process.stdin });\nconst lines = [];\nrl.on('line', l => lines.push(l));\nrl.on('close', () => {\n    // Process input from lines[]\n});\n`,

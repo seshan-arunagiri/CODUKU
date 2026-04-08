@@ -1051,3 +1051,55 @@
     min-height: 40vh;
   }
 }
+
+/* ===== CONFETTI CANVAS ===== */
+.confetti-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* ===== ADDITIONAL VERDICT STYLES ===== */
+.time-display {
+  margin: 0;
+  font-size: 13px;
+  color: var(--arena-text-muted);
+}
+
+.submit-result.error .verdict-box {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(127, 29, 29, 0.08));
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.submit-result.error .verdict-icon { color: var(--arena-error); }
+.submit-result.error .verdict-text { color: var(--arena-error); }
+
+.submit-result.system-error .verdict-box {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(127, 29, 29, 0.08));
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.submit-result.system-error .verdict-icon { color: var(--arena-error); }
+.submit-result.system-error .verdict-text { color: var(--arena-error); }
+
+.submit-result.memory-limit-exceeded .verdict-box {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(146, 64, 14, 0.08));
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.submit-result.memory-limit-exceeded .verdict-icon { color: var(--arena-warning); }
+.submit-result.memory-limit-exceeded .verdict-text { color: var(--arena-warning); }
+
+/* System error test case result */
+.test-case-result.system-error {
+  border-left-color: var(--arena-error);
+  background: rgba(239, 68, 68, 0.06);
+}
+.test-case-result.system-error .tc-verdict { color: var(--arena-error); }
+
+.test-case-result.unknown {
+  border-left-color: var(--arena-text-muted);
+  background: rgba(92, 90, 120, 0.06);
+}
+.test-case-result.unknown .tc-verdict { color: var(--arena-text-muted); }

@@ -1,0 +1,563 @@
+/* CODUKU Profile Component Styles - Harry Potter Themed */
+
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e0e0e0;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ============= HEADER ============= */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.05));
+  border-bottom: 3px solid #dc143c;
+  padding: 40px;
+  border-radius: 12px;
+  margin-bottom: 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.crest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.crestIcon {
+  animation: float 3s ease-in-out infinite;
+  text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.houseName {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.userInfo {
+  flex: 1;
+}
+
+.username {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+}
+
+.housePoints {
+  font-size: 1.1rem;
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+/* ============= STATS GRID ============= */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.statCard {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.2));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid #dc143c;
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.statCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(220, 20, 60, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.statValue {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.statLabel {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #a0aec0;
+  font-weight: 600;
+}
+
+/* ============= SUBMISSIONS SECTION ============= */
+
+.submissionsSection {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 30px;
+  backdrop-filter: blur(10px);
+}
+
+.sectionTitle {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 25px 0;
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============= FILTER BAR ============= */
+
+.filterBar {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filterLabel {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #cbd5e0;
+}
+
+.filterSelect {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.filterSelect:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: #dc143c;
+  box-shadow: 0 0 0 3px rgba(220, 20, 60, 0.2);
+}
+
+.submissionCount {
+  margin-left: auto;
+  color: #a0aec0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* ============= SUBMISSIONS TABLE ============= */
+
+.submissionsTable {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tableHeader {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(255, 215, 0, 0.3);
+  padding: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #cbd5e0;
+}
+
+.tableRow {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0;
+  transition: all 0.3s ease;
+  align-items: center;
+}
+
+.tableRow:hover {
+  background: rgba(255, 215, 0, 0.05);
+  border-bottom-color: rgba(255, 215, 0, 0.2);
+}
+
+.tableCell {
+  padding: 15px 12px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.problemName {
+  font-weight: 600;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+}
+
+.verdictBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.language {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  background: rgba(100, 200, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #90caf9;
+}
+
+.score {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #ffd700;
+}
+
+.tests {
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
+.date {
+  color: #a0aec0;
+  font-size: 0.85rem;
+}
+
+.viewButton {
+  background: transparent;
+  border: 1px solid;
+  color: inherit;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.viewButton:hover {
+  background: currentColor;
+  color: #1a1a2e;
+  transform: scale(1.05);
+}
+
+/* ============= EMPTY STATE ============= */
+
+.emptyState {
+  text-align: center;
+  padding: 60px 20px;
+  color: #a0aec0;
+}
+
+.emptyIcon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+
+.emptyState p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* ============= LOADING ============= */
+
+.loadingSpinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(255, 215, 0, 0.2);
+  border-top: 3px solid #ffd700;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingSpinner p {
+  color: #cbd5e0;
+  font-size: 1.1rem;
+}
+
+/* ============= RESPONSIVE DESIGN ============= */
+
+@media (max-width: 768px) {
+  .container {
+    padding: 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    text-align: center;
+    gap: 25px;
+    padding: 25px;
+  }
+
+  .username {
+    font-size: 2rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+  }
+
+  .statCard {
+    padding: 20px;
+  }
+
+  .statValue {
+    font-size: 2rem;
+  }
+
+  .tableHeader,
+  .tableRow {
+    font-size: 0.8rem;
+  }
+
+  .tableCell {
+    padding: 12px 8px;
+  }
+
+  .filterBar {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+
+  .filterSelect {
+    width: 100%;
+  }
+
+  .submissionCount {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sectionTitle {
+    font-size: 1.4rem;
+  }
+
+  .submissionsSection {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 8px;
+  }
+
+  .header {
+    padding: 20px;
+  }
+
+  .username {
+    font-size: 1.5rem;
+  }
+
+  .houseName {
+    font-size: 1.1rem;
+  }
+
+  .crestIcon {
+    font-size: 2.5rem !important;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .statCard {
+    padding: 15px;
+  }
+
+  .statValue {
+    font-size: 1.8rem;
+  }
+
+  .statLabel {
+    font-size: 0.8rem;
+  }
+
+  .tableHeader,
+  .tableRow {
+    font-size: 0.75rem;
+  }
+
+  .tableCell {
+    padding: 10px 6px;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .tableRow {
+    flex-direction: column;
+    align-items: stretch;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .tableCell {
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .tableCell::before {
+    content: attr(data-label);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    color: #a0aec0;
+    margin-right: 10px;
+  }
+
+  .sectionTitle {
+    font-size: 1.2rem;
+  }
+
+  .submissionsSection {
+    padding: 15px;
+  }
+}
+
+/* ============= VERDICT COLORS ============= */
+
+.verdictAccepted {
+  color: #22c55e;
+  border-color: #22c55e;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.verdictWrongAnswer {
+  color: #ef4444;
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.verdictRuntimeError {
+  color: #f97316;
+  border-color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.verdictTimeLimit {
+  color: #eab308;
+  border-color: #eab308;
+  background: rgba(234, 179, 8, 0.1);
+}
+
+.verdictCompilationError {
+  color: #d946ef;
+  border-color: #d946ef;
+  background: rgba(217, 70, 239, 0.1);
+}
+
+.verdictPartial {
+  color: #3b82f6;
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* ============= HOUSE COLORS ============= */
+
+.houseCrestGryffindor {
+  color: #dc143c;
+}
+
+.houseCrestSlytherin {
+  color: #00aa00;
+}
+
+.houseCrestHufflepuff {
+  color: #ffd700;
+}
+
+.houseCrestRavenclaw {
+  color: #4169e1;
+}

@@ -30,11 +30,23 @@ function LeaderboardPage() {
 
       if (globalRes.status === 'fulfilled') {
         const data = globalRes.value;
-        setLeaderboard(data.leaderboard || data.users || []);
+        // Backend returns flat array [{rank, name, username, house, score}]
+        const list = data.leaderboard || data.users || (Array.isArray(data) ? data : []);
+        setLeaderboard(Array.isArray(list) ? list : []);
       }
       if (houseRes.status === 'fulfilled') {
         const hData = houseRes.value;
-        setHouseBoard(hData?.houses || hData || {});
+        // Backend returns { houses: [{rank, house, total_points, members, avg_points_per_member}] }
+        const houseArray = hData.houses || (Array.isArray(hData) ? hData : []);
+        const houseMap = {};
+        houseArray.forEach(h => {
+          const key = (h.house || '').toLowerCase();
+          if (key) houseMap[key] = {
+            ...h,
+            total_score: h.total_points || h.total_score || 0,
+          };
+        });
+        setHouseBoard(houseMap);
       }
     } catch (error) {
       console.error('Failed to fetch leaderboards:', error);
@@ -145,7 +157,7 @@ function LeaderboardPage() {
                       </td>
                       <td className="name-cell">
                         <span className="coder-name">
-                          {entry.username || entry.user_id || 'Anonymous'}
+                          {entry.username || entry.name || entry.user_id || 'Anonymous'}
                         </span>
                         {isMe && <span className="you-badge">YOU</span>}
                       </td>
@@ -154,7 +166,7 @@ function LeaderboardPage() {
                           {hi.emoji} {hi.name}
                         </span>
                       </td>
-                      <td className="score-cell">{entry.score || 0}</td>
+                      <td className="score-cell">{entry.total_points || entry.score || 0}</td>
                     </tr>
                   );
                 })}
@@ -197,7 +209,7 @@ function LeaderboardPage() {
                       <div className="score-item">
                         <span className="score-label">Members</span>
                         <span className="score-value">
-                          {houseData.leaderboard?.length || houseData.members || 0}
+                          {houseData.members || houseData.leaderboard?.length || 0}
                         </span>
                       </div>
                     </div>

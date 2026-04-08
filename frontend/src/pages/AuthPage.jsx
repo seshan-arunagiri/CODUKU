@@ -76,14 +76,18 @@ function AuthPage() {
         });
       }
 
-      const { access_token, user_id, username, house, message } = response;
+      const token = response.access_token;
+      const userId = response.user_id;
+      const displayName = response.username || response.name || form.username || form.email.split('@')[0];
+      const userHouse = response.house || form.house || 'gryffindor';
       
-      login(access_token, {
-        user_id,
-        username,
-        email: form.email,
-        house,
-        message
+      login(token, {
+        user_id: userId,
+        username: displayName,
+        email: form.email || response.email,
+        house: userHouse,
+        total_score: response.total_score || 0,
+        problems_solved: response.problems_solved || 0,
       });
 
       navigate('/dashboard');
