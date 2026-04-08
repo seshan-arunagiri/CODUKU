@@ -1,0 +1,120 @@
+﻿gateway-1  | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+gateway-1  | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+gateway-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+gateway-1  | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+gateway-1  | 10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+gateway-1  | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+gateway-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+gateway-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+gateway-1  | /docker-entrypoint.sh: Configuration complete; ready for start up
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:02:47 +0000] "GET / HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 2026/04/07 07:02:48 [error] 33#33: *28 open() "/usr/share/nginx/html/favicon.ico" failed (2: No such file or directory), client: 172.18.0.1, server: _, request: "GET /favicon.ico HTTP/1.1", host: "localhost", referrer: "http://localhost/"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:02:48 +0000] "GET /favicon.ico HTTP/1.1" 404 536 "http://localhost/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+judge-1    | 2026-04-07 09:02:19,113 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:57628 - "GET /health HTTP/1.1" 200 OK
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:03:31 +0000] "GET /login HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:04:24 +0000] "GET /api/docs HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+judge-1    | 2026-04-07 09:02:39,171 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:51216 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:02:59,233 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:05:04 +0000] "GET / HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:05:15 +0000] "GET / HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 2026/04/07 07:05:15 [error] 34#34: *38 open() "/usr/share/nginx/html/favicon.ico" failed (2: No such file or directory), client: 172.18.0.1, server: _, request: "GET /favicon.ico HTTP/1.1", host: "127.0.0.1", referrer: "http://127.0.0.1/"
+judge-1    | INFO:     127.0.0.1:49228 - "GET /health HTTP/1.1" 200 OK
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:05:15 +0000] "GET /favicon.ico HTTP/1.1" 404 536 "http://127.0.0.1/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:06:24 +0000] "GET / HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+gateway-1  | 172.18.0.1 - - [07/Apr/2026:07:06:32 +0000] "GET /editor HTTP/1.1" 200 536 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+judge-1    | 2026-04-07 09:03:19,295 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:44232 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:03:39,348 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:39838 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:03:59,413 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:47234 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:04:19,469 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:59416 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:04:39,524 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:60074 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:04:59,590 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:57142 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:05:19,647 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:42428 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:05:39,716 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:53258 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:06:00,072 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:49998 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:06:20,132 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:35118 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:06:40,190 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:59772 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:07:00,245 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:34812 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:07:20,305 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:35998 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:07:40,363 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:54044 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:08:00,426 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:40460 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:08:20,481 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:40622 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:08:40,535 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:39792 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:09:00,589 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:36612 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:09:20,644 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:37660 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:09:40,697 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:32940 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:10:00,757 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:42808 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:10:20,814 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:47910 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:10:40,865 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:58672 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:11:00,923 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:54678 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:11:20,976 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:57428 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:11:41,034 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:55404 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:12:01,091 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:37530 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:12:21,153 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:33418 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:12:41,210 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:55478 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:13:01,273 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:41392 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:13:21,342 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:48184 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:13:41,398 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:38968 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:14:01,459 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:49942 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:14:21,519 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:44822 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:14:41,578 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:40922 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:15:01,637 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:45156 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:15:21,698 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:60670 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:15:41,756 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:37318 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:16:01,811 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:51784 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:16:22,268 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:37170 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:16:42,328 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:56100 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:17:02,384 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:36334 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:17:22,442 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:42458 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:17:42,498 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:46082 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:18:02,560 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:46232 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:18:22,627 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:49728 - "GET /health HTTP/1.1" 200 OK
+judge-1    | 2026-04-07 09:18:42,685 - httpx - INFO - HTTP Request: GET http://judge0:2358/ "HTTP/1.1 200 OK"
+judge-1    | INFO:     127.0.0.1:39278 - "GET /health HTTP/1.1" 200 OK
