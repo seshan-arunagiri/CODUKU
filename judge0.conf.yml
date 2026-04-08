@@ -1,0 +1,15 @@
+# Judge0 Configuration File
+server:
+  bind: 0.0.0.0
+  port: <%= ENV["PORT"] || 3000 %>
+
+redis:
+  cluster: false
+  url: redis://redis:6379/0
+  namespace: judge0
+
+database:
+  url: <%= ENV["DATABASE_URL"] %>
+
+logger:
+  level: info
