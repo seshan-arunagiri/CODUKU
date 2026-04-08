@@ -9,16 +9,14 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY services/judge_service/requirements.txt .
+# Copy requirements first (for better caching)
+COPY requirements.txt .
+
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY services/judge_service/app ./app
+# Copy the app directory (correct path for this build context)
+COPY app ./app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8002/health || exit 1
+EXPOSE 8002
 
-# Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]

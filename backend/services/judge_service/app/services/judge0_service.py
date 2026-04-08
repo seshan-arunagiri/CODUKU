@@ -14,22 +14,27 @@ class Judge0Service:
     """Judge0 API wrapper for the judge microservice."""
 
     LANGUAGE_MAP = {
-        "python3": 71,
         "python": 71,
+        "python3": 71,
+        "python2": 71,
+        "java": 62,
         "cpp": 54,
         "cpp17": 54,
         "c++": 54,
-        "java": 62,
+        "c": 50,
         "javascript": 63,
         "js": 63,
+        "node": 63,
+        "typescript": 74,
+        "ts": 74,
         "go": 60,
         "rust": 73,
-        "c": 50,
         "csharp": 51,
+        "c#": 51,
         "cs": 51,
         "ruby": 72,
         "php": 68,
-        "swift": 75,
+        "swift": 83,
         "kotlin": 78,
     }
 
