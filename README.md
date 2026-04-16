@@ -1,5 +1,4 @@
 # 🏆 CODUKU - Competitive Coding Platform
-
 <div align="center">
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat-square&logo=python)](https://www.python.org/)
